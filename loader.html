@@ -1,0 +1,44 @@
+<div class="loader-overlay" id="loaderOverlay">
+    <div class="progress-bar-container">
+        <div class="progress-bar" id="progressBar">0%</div>
+    </div>
+    <div class="loading-text" id="loadingText">頁面載入中...</div>
+</div>
+
+<script>
+    const _loaderOverlay = document.getElementById('loaderOverlay');
+    const _progressBar = document.getElementById('progressBar');
+    const _loadingText = document.getElementById('loadingText');
+    let _loaderIntervalId;
+
+    function showLoader(text = '頁面載入中...') {
+        let progress = 0;
+        _progressBar.style.width = '0%';
+        _progressBar.textContent = '0%';
+        _loadingText.textContent = text;
+        _loaderOverlay.style.display = 'flex';
+
+        // 模擬一個平滑的進度條，直到 90%
+        _loaderIntervalId = setInterval(() => {
+            if (progress < 90) {
+                progress += Math.floor(Math.random() * 5) + 1;
+                if (progress > 90) progress = 90;
+                _progressBar.style.width = progress + '%';
+                _progressBar.textContent = progress + '%';
+            }
+        }, 200);
+    }
+
+    function hideLoader(text = '載入完成！') {
+        clearInterval(_loaderIntervalId); // 停止模擬進度
+
+        _progressBar.style.width = '100%';
+        _progressBar.textContent = '100%';
+        _loadingText.textContent = text;
+        
+        setTimeout(() => {
+            // ✨【核心修正】使用正確的 CSS 值 'none'，並確保沒有多餘字元
+            _loaderOverlay.style.display = 'none';
+        }, 500);
+    }
+</script>

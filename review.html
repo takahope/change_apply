@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <base target="_top">
+    <?!= include('stylesheet'); ?>
+    <style>
+      .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.5); }
+      .modal-content { background-color: #fefefe; margin: 15% auto; padding: 20px; border: 1px solid #888; width: 80%; max-width: 500px; border-radius: 8px; position: relative; }
+      .close-button { color: #aaa; float: right; font-size: 28px; font-weight: bold; position: absolute; top: 10px; right: 20px; }
+      .close-button:hover, .close-button:focus { color: black; text-decoration: none; cursor: pointer; }
+      .modal-body { white-space: pre-wrap; } /* 讓換行符號 \n 生效 */
+      .view-button { padding: 5px 10px; font-size: 14px; }
+    </style>
+</head>
+<body>
+    <?!= include('loader'); ?>
+
+    <div class="container">
+      <a href="<?= ScriptApp.getService().getUrl(); ?>">&lt; 返回首頁</a>
+      <h1>待審核案件</h1>
+      <div id="statusMessage" style="text-align: center; padding: 20px;">載入中...</div>
+      
+      <div id="review-area" style="display:none;">
+        <button id="approveBtn">批次核准所選項目</button>
+        <table id="reviewTable">
+          <thead> <tr id="tableHeader"></tr> </thead>
+          <tbody id="tableBody"></tbody>
+        </table>
+        <div id="status"></div>
+      </div>
+    </div>
+
+    <div id="assessmentModal" class="modal">
+      <div class="modal-content">
+        <span class="close-button">&times;</span>
+        <h3>變更前評估詳細資訊</h3>
+        <hr>
+        <div id="modalBody" class="modal-body"></div>
+      </div>
+    </div>
+
+    <script>
+      window.addEventListener('load', function() { loadPendingApprovals(); });
+
+      // ✨【核心修改 3】: 更新載入函數以使用 showLoader
+      function loadPendingApprovals() {
+        showLoader('正在載入待審核案件...');
+        document.getElementById('status').innerText = '';
+        google.script.run
+          .withSuccessHandler(renderTable)
+          .withFailureHandler(handleError)
+          .getPendingApprovals();
+      }
+      
+      // ✨【核心修改 4】: 重構 renderTable 函數以配合新 loader
+      function renderTable(data) {
+        hideLoader('載入完成！'); // 首先關閉載入動畫
+        
+        const statusMessage = document.getElementById('statusMessage');
+        const reviewArea = document.getElementById('review-area');
+
+        if (!Array.isArray(data) || data.length <= 1) {
+            statusMessage.innerText = '目前沒有待審核的案件。';
+            statusMessage.style.display = 'block';
+            reviewArea.style.display = 'none';
+            return;
+        }
+
+        const tableBody = document.getElementById('tableBody');
+        const headerRow = document.getElementById('tableHeader');
+        tableBody.innerHTML = ''; headerRow.innerHTML = '';
+
+        const headers = data.shift();
+        
+        headerRow.innerHTML = '<th><input type="checkbox" id="selectAll"></th>';
+        headers.forEach(h => {
+          if (h !== '原始列號') {
+            const th = document.createElement('th');
+            th.textContent = h;
+            headerRow.appendChild(th);
+          }
+        });
+
+        const rawRowIndex = headers.indexOf('原始列號');
+        const assessmentIndex = headers.indexOf('查看變更前評估');
+
+        data.forEach(row => {
+          const tr = document.createElement('tr');
+          const rowNumber = row[rawRowIndex];
+          const assessmentDetails = row[assessmentIndex];
+
+          tr.innerHTML = `<td><input type="checkbox" class="approval-checkbox" data-row-number="${rowNumber}"></td>`;
+
+          row.forEach((cell, index) => {
+            if (index !== rawRowIndex) {
+              const td = document.createElement('td');
+              if (index === assessmentIndex) {
+                const button = document.createElement('button');
+                button.textContent = '查看';
+                button.className = 'view-button';
+                button.dataset.details = assessmentDetails;
+                td.appendChild(button);
+              } else {
+                td.textContent = (cell === null || cell === undefined) ? '' : cell;
+              }
+              tr.appendChild(td);
+            }
+          });
+          tableBody.appendChild(tr);
+        });
+        
+        statusMessage.style.display = 'none';
+        reviewArea.style.display = 'block';
+
+        document.getElementById('selectAll').addEventListener('change', function() {
+            document.querySelectorAll('.approval-checkbox').forEach(checkbox => { checkbox.checked = this.checked; });
+        });
+      }
+      
+      // ✨【核心修改 5】: 重構 handleError 函數以配合新 loader
+      function handleError(error) { 
+        hideLoader('載入失敗！'); // 首先關閉載入動畫
+        const statusMessage = document.getElementById('statusMessage');
+        statusMessage.innerText = '載入資料時發生錯誤：' + error.message; 
+        statusMessage.style.display = 'block';
+        document.getElementById('review-area').style.display = 'none';
+      }
+
+      // --- 下方的事件監聽邏輯維持不變 ---
+      document.getElementById('review-area').addEventListener('click', function(event) {
+        if (event.target.classList.contains('view-button')) {
+            const details = event.target.dataset.details;
+            document.getElementById('modalBody').innerText = details;
+            document.getElementById('assessmentModal').style.display = 'block';
+        }
+      });
+      document.querySelector('.close-button').onclick = function() {
+        document.getElementById('assessmentModal').style.display = "none";
+      }
+      window.onclick = function(event) {
+        const modal = document.getElementById('assessmentModal');
+        if (event.target == modal) { modal.style.display = "none"; }
+      }
+
+      document.getElementById('approveBtn').addEventListener('click', function() {
+        const checkedBoxes = document.querySelectorAll('.approval-checkbox:checked');
+        if (checkedBoxes.length === 0) {
+          alert('請至少選擇一個要核准的項目。');
+          return;
+        }
+        const rowNumbersToApprove = Array.from(checkedBoxes).map(cb => parseInt(cb.dataset.rowNumber));
+        this.disabled = true;
+        document.getElementById('status').innerText = '處理中，請稍候...';
+        google.script.run
+          .withSuccessHandler(handleApprovalSuccess)
+          .withFailureHandler(handleApprovalError)
+          .processBatchApproval(rowNumbersToApprove);
+      });
+      
+      function handleApprovalSuccess(responseMessage) {
+        alert(responseMessage);
+        document.getElementById('approveBtn').disabled = false;
+        // 重新載入時會自動顯示進度條
+        loadPendingApprovals();
+      }
+      
+      function handleApprovalError(error) {
+        alert('審核操作失敗：' + error.message);
+        document.getElementById('status').innerText = '審核失敗，請重試。';
+        document.getElementById('approveBtn').disabled = false;
+      }
+    </script>
+</body>
+</html>

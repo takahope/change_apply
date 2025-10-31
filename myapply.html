@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <base target="_top">
+    <?!= include('stylesheet'); ?>
+</head>
+<body>
+    <?!= include('loader'); ?>
+
+    <div class="container">
+      <a href="<?= ScriptApp.getService().getUrl(); ?>?page=form" class="button">新增系統變更申請</a>
+      <h1>我的申請紀錄</h1>
+      
+      <div id="statusMessage" style="display:none; text-align: center; padding: 20px;"></div>
+      
+      <table id="applyTable" style="display:none;">
+        <thead> <tr id="tableHeader"></tr> </thead>
+        <tbody id="tableBody"></tbody>
+      </table>
+    </div>
+
+    <script>
+      // ✨【核心修改 2】: 全面重構 renderTable 函數以配合新的 loader
+      function renderTable(dataWithHeaders) {
+        // 無論成功與否，第一件事就是關閉載入動畫
+        hideLoader('查詢完成！');
+
+        const statusMessage = document.getElementById('statusMessage');
+        const applyTable = document.getElementById('applyTable');
+
+        // 檢查回傳的資料是否有效 (第一行為標頭，所以長度至少要 > 1 才算有內容)
+        if (!Array.isArray(dataWithHeaders) || dataWithHeaders.length <= 1) {
+            statusMessage.innerText = '查無您的申請紀錄。';
+            statusMessage.style.display = 'block';
+            applyTable.style.display = 'none'; // 確保表格是隱藏的
+            return;
+        }
+
+        // 資料有效，開始建立表格
+        const headers = dataWithHeaders.shift(); // 取出並移除第一行作為標頭
+        const data = dataWithHeaders; // 剩下的就是資料
+        
+        const headerRow = document.getElementById('tableHeader');
+        const tableBody = document.getElementById('tableBody');
+        headerRow.innerHTML = '';
+        tableBody.innerHTML = '';
+        
+        // 建立標頭
+        headers.forEach(header => {
+          const th = document.createElement('th');
+          th.textContent = header;
+          headerRow.appendChild(th);
+        });
+        
+        // 建立資料列
+        data.forEach(row => {
+          const tr = document.createElement('tr');
+          row.forEach(cell => {
+            const td = document.createElement('td');
+            // 處理 null 或 undefined 的情況，顯示為空白
+            td.textContent = (cell === null || cell === undefined) ? '' : cell;
+            tr.appendChild(td);
+          });
+          tableBody.appendChild(tr);
+        });
+        
+        // 顯示表格
+        statusMessage.style.display = 'none';
+        applyTable.style.display = 'table';
+      }
+
+      // ✨【核心修改 3】: 修改頁面載入邏輯
+      window.addEventListener('load', function() {
+        // 1. 立即顯示載入動畫
+        showLoader('正在查詢您的申請紀錄...');
+        
+        // 2. 執行後端腳本
+        google.script.run
+          .withSuccessHandler(renderTable)
+          .withFailureHandler(err => {
+            // 失敗時也要關閉載入動畫，並顯示錯誤訊息
+            hideLoader('查詢失敗！');
+            const statusMessage = document.getElementById('statusMessage');
+            statusMessage.innerText = '載入失敗：' + err.message;
+            statusMessage.style.display = 'block';
+          })
+          .getUserApplications(); // 注意：此函數應回傳包含標頭的二維陣列
+      });
+    </script>
+</body>
+</html>

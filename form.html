@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <base target="_top">
+    <?!= include('stylesheet'); ?>
+</head>
+<body>
+    <?!= include('loader'); ?>
+    <div class="container">
+      <a href="<?= ScriptApp.getService().getUrl(); ?>?page=myapply" class="button">查詢申請紀錄</a>
+      <h1>新增系統變更申請</h1>
+      <p>請依序選擇要變更的資訊資產，您的姓名與申請日期將由系統自動記錄。</p>
+      
+      <form id="applyForm">
+        
+        <div class="form-field"><label for="groupSelect">1. 選擇組別</label><select id="groupSelect" required> <option value="">載入中...</option> </select></div>
+        <div class="form-field"><label for="categorySelect">2. 選擇類別</label><select id="categorySelect" required disabled> <option value="">請先選擇組別</option> </select></div>
+        <div class="form-field"><label for="assetIdSelect">3. 選擇資產編號</label><select id="assetIdSelect" required disabled> <option value="">請先選擇類別</option> </select></div>
+        <div class="form-field"><label>所選資產名稱</label><div id="assetNameDisplay" class="asset-display">尚未選擇</div></div>
+        <input type="hidden" name="申請類別"><input type="hidden" name="資訊資產編號"><input type="hidden" name="資訊資產名稱"><hr>
+        <div class="form-field"><label for="categoryName">類別名稱</label><select id="categoryName" name="類別名稱" required> <option value="">載入中...</option> </select></div>
+        <div class="form-field"><label for="applyDescription">申請說明</label><select id="applyDescription" name="申請說明" required> <option value="">載入中...</option> </select></div>
+
+        <fieldset>
+          <legend>變更前評估</legend>
+          
+          <div class="form-field">
+            <label>影響範圍</label>
+            <div class="impact-scope-filters">
+              <div class="filter-group">
+                <select id="impactFilterGroup"><option value="">所有組別</option></select>
+              </div>
+              <div class="filter-group">
+                <select id="impactFilterCategory"><option value="">所有類別</option></select>
+              </div>
+              <button type="button" id="deselectAllImpact">全部取消</button>
+            </div>
+            <div id="impactCheckboxList" class="impact-scope-checkbox-list">
+              </div>
+          </div>
+
+          <div class="form-field"><label>事前測試</label><select name="變更前評估-事前測試" required> <option value="">載入中...</option> </select></div>
+          <div class="form-field"><label>備份狀態說明</label><select name="變更前評估-備份狀態說明" required> <option value="">載入中...</option> </select></div>
+          <div class="form-field"><label>風險處置方式</label><select name="變更前評估-風險處置方式" required> <option value="">載入中...</option> </select></div>
+          <div class="form-field"><label>風險處置方式說明</label><select name="變更前評估-風險處置方式說明" required> <option value="">載入中...</option> </select></div>
+          <div class="form-field"><label>變更前資訊</label><input type="text" name="變更前資訊"></div>
+          <div class="form-field"><label>變更後資訊</label><input type="text" name="變更後資訊"></div>
+        </fieldset>
+
+        <button type="submit" id="submitBtn">提交申請</button>
+        <div id="status"></div>
+      </form>
+    </div>
+
+  <script>
+  // --- 全域變數 ---
+  let allAssetData = [];
+  let loadedDropdownOptions = {};
+  let loadTasksCompleted = 0;
+  const TOTAL_LOAD_TASKS = 2; // 維持不變，我們有兩項非同步載入任務
+  const form = document.getElementById('applyForm');
+  const groupSelect = document.getElementById('groupSelect');
+  const categorySelect = document.getElementById('categorySelect');
+  const assetIdSelect = document.getElementById('assetIdSelect');
+  const assetNameDisplay = document.getElementById('assetNameDisplay');
+
+  // --- 頁面載入邏輯 ---
+  window.addEventListener('load', function() {
+    showLoader('正在初始化申請表單...');
+    // 這兩行非同步呼叫維持不變
+    google.script.run.withSuccessHandler(initializeAssetSelectors).withFailureHandler(handleError).getAssetData();
+    google.script.run.withSuccessHandler(initializeDropdowns).withFailureHandler(handleError).getFormDropdownOptions();
+  });
+
+  // ✨【核心修正-1】: 在 initializeDropdowns 函數結尾呼叫 onTaskComplete
+  function initializeDropdowns(optionsData) {
+    loadedDropdownOptions = optionsData;
+    for (const fieldName in optionsData) {
+      const selectElement = document.querySelector(`select[name="${fieldName}"]`);
+      if (selectElement) {
+        populateSelect(selectElement, optionsData[fieldName]);
+      }
+    }
+    // 新增下面這一行：通知任務管理器，此項任務已完成
+    onTaskComplete('表單選項已載入...');
+  }
+
+  // ✨【核心修正-2】: 在 initializeAssetSelectors 函數結尾呼叫 onTaskComplete
+  function initializeAssetSelectors(data) {
+    if (!data || data.length === 0) {
+      handleError({ message: '資訊資產工作表沒有資料。' });
+      return;
+    }
+    allAssetData = data;
+    const COL_GROUP = 3;
+    const groups = [...new Set(allAssetData.map(row => row[COL_GROUP]))].filter(g => g);
+    populateSelect(groupSelect, groups);
+    populateImpactScopeFiltersAndCheckboxes();
+    // 新增下面這一行：通知任務管理器，此項任務已完成
+    onTaskComplete('資產資料已載入...');
+  }
+
+  // 這個函數現在會被正確呼叫了
+  function onTaskComplete(statusText) {
+    console.log(statusText); // 可以在控制台看到進度
+    loadTasksCompleted++;
+    if (loadTasksCompleted >= TOTAL_LOAD_TASKS) {
+      // 當兩個任務都完成時，隱藏載入動畫
+      hideLoader('表單初始化完成！');
+    }
+  }
+  
+  // 其他函數維持不變...
+  function handleError(error) {
+    const statusDiv = document.getElementById('status');
+    // ✨【優化建議】確保發生錯誤時也能正確關閉載入動畫
+    hideLoader(`載入失敗: ${error.message || '未知錯誤'}`);
+    statusDiv.innerText = '錯誤：無法載入頁面資料，請檢查工作表或聯絡管理員。';
+    statusDiv.style.color = 'red';
+    console.error('GAS Error:', error);
+  }
+
+  function populateImpactScopeFiltersAndCheckboxes() {
+    const COL_GROUP = 3, COL_CATEGORY = 4, COL_ASSET_NAME = 2;
+    const impactFilterGroup = document.getElementById('impactFilterGroup');
+    const impactFilterCategory = document.getElementById('impactFilterCategory');
+    const checkboxList = document.getElementById('impactCheckboxList');
+    checkboxList.innerHTML = '載入中...';
+
+    const groups = [...new Set(allAssetData.map(row => row[COL_GROUP]))].filter(g => g);
+    const categories = [...new Set(allAssetData.map(row => row[COL_CATEGORY]))].filter(c => c);
+    populateSelect(impactFilterGroup, groups, true, '所有組別');
+    populateSelect(impactFilterCategory, categories, true, '所有類別');
+    
+    checkboxList.innerHTML = '';
+    allAssetData.forEach((row, index) => {
+      const assetName = row[COL_ASSET_NAME];
+      if (!assetName) return;
+
+      const itemDiv = document.createElement('div');
+      itemDiv.className = 'checkbox-item';
+      itemDiv.dataset.group = row[COL_GROUP] || '';
+      itemDiv.dataset.category = row[COL_CATEGORY] || '';
+
+      const checkbox = document.createElement('input');
+      checkbox.type = 'checkbox';
+      checkbox.id = `impact_cb_${index}`;
+      checkbox.value = assetName;
+      
+      const label = document.createElement('label');
+      label.htmlFor = `impact_cb_${index}`;
+      label.textContent = assetName;
+      
+      itemDiv.appendChild(checkbox);
+      itemDiv.appendChild(label);
+      checkboxList.appendChild(itemDiv);
+    });
+  }
+
+  function applyImpactScopeFilter() {
+    const groupFilter = document.getElementById('impactFilterGroup').value;
+    const categoryFilter = document.getElementById('impactFilterCategory').value;
+    const allItems = document.querySelectorAll('#impactCheckboxList .checkbox-item');
+
+    allItems.forEach(item => {
+      const matchesGroup = !groupFilter || item.dataset.group === groupFilter;
+      const matchesCategory = !categoryFilter || item.dataset.category === categoryFilter;
+      
+      if (matchesGroup && matchesCategory) {
+        item.style.display = 'flex';
+      } else {
+        item.style.display = 'none';
+      }
+    });
+  }
+
+  function populateSelect(selectElement, optionsArray, addDefaultOption = true, defaultText = '請選擇...') {
+    selectElement.innerHTML = '';
+    if (addDefaultOption) {
+      selectElement.innerHTML = `<option value="">${defaultText}</option>`;
+    }
+    optionsArray.forEach(optionValue => {
+      if (optionValue) {
+        const option = document.createElement('option');
+        option.value = optionValue;
+        option.textContent = optionValue;
+        selectElement.appendChild(option);
+      }
+    });
+  }
+
+  function resetSelect(selectElement, defaultText) {
+    selectElement.innerHTML = `<option value="">${defaultText}</option>`;
+  }
+  
+  // --- 事件監聽 (維持不變) ---
+  groupSelect.addEventListener('change', function() {
+    resetSelect(categorySelect, '請選擇類別');
+    resetSelect(assetIdSelect, '請先選擇類別');
+    assetNameDisplay.textContent = '尚未選擇';
+    categorySelect.disabled = true;
+    assetIdSelect.disabled = true;
+    const selectedGroup = this.value;
+    if (selectedGroup) {
+      const COL_GROUP = 3, COL_CATEGORY = 4;
+      const categories = [...new Set(allAssetData.filter(row => row[COL_GROUP] === selectedGroup).map(row => row[COL_CATEGORY]))].filter(c => c);
+      populateSelect(categorySelect, categories);
+      categorySelect.disabled = false;
+    }
+  });
+
+  categorySelect.addEventListener('change', function() {
+    resetSelect(assetIdSelect, '請選擇資產編號');
+    assetNameDisplay.textContent = '尚未選擇';
+    assetIdSelect.disabled = true;
+    const selectedGroup = groupSelect.value;
+    const selectedCategory = this.value;
+    if (selectedCategory) {
+      const COL_GROUP = 3, COL_CATEGORY = 4, COL_ASSET_ID = 0;
+      const assetIds = allAssetData.filter(row => row[COL_GROUP] === selectedGroup && row[COL_CATEGORY] === selectedCategory).map(row => row[COL_ASSET_ID]).filter(id => id);
+      populateSelect(assetIdSelect, assetIds);
+      assetIdSelect.disabled = false;
+    }
+  });
+
+  assetIdSelect.addEventListener('change', function() {
+    const selectedAssetId = this.value;
+    if (selectedAssetId) {
+      const COL_ASSET_ID = 0, COL_ASSET_NAME = 2, COL_APPLY_TYPE = 6;
+      const selectedAsset = allAssetData.find(row => row[COL_ASSET_ID] === selectedAssetId);
+      if (selectedAsset) {
+        assetNameDisplay.textContent = selectedAsset[COL_ASSET_NAME];
+        document.querySelector('input[name="申請類別"]').value = selectedAsset[COL_APPLY_TYPE];
+        document.querySelector('input[name="資訊資產編號"]').value = selectedAsset[COL_ASSET_ID];
+        document.querySelector('input[name="資訊資產名稱"]').value = selectedAsset[COL_ASSET_NAME];
+      }
+    } else {
+      assetNameDisplay.textContent = '尚未選擇';
+      document.querySelector('input[name="申請類別"]').value = '';
+      document.querySelector('input[name="資訊資產編號"]').value = '';
+      document.querySelector('input[name="資訊資產名稱"]').value = '';
+    }
+  });
+
+  document.getElementById('impactFilterGroup').addEventListener('change', applyImpactScopeFilter);
+  document.getElementById('impactFilterCategory').addEventListener('change', applyImpactScopeFilter);
+  document.getElementById('deselectAllImpact').addEventListener('click', function() {
+    document.querySelectorAll('#impactCheckboxList input[type="checkbox"]').forEach(cb => cb.checked = false);
+  });
+
+  form.addEventListener('submit', function(e) {
+    e.preventDefault();
+    document.getElementById('submitBtn').disabled = true;
+    document.getElementById('status').innerText = '提交中，請稍候...';
+    
+    const formData = {};
+    this.querySelectorAll('input, textarea, select').forEach(el => {
+      if (!el.name || el.type === 'checkbox') return;
+      formData[el.name] = el.value;
+    });
+
+    const checkedImpactItems = document.querySelectorAll('#impactCheckboxList input[type="checkbox"]:checked');
+    const selectedImpactValues = Array.from(checkedImpactItems).map(cb => cb.value);
+    formData['變更前評估-影響範圍'] = selectedImpactValues.join(', ');
+
+    google.script.run
+      .withSuccessHandler(function(response) {
+        document.getElementById('status').innerText = response;
+        if (response.includes('成功')) {
+          form.reset();
+          initializeAssetSelectors(allAssetData);
+          initializeDropdowns(loadedDropdownOptions);
+          resetSelect(categorySelect, '請先選擇組別');
+          categorySelect.disabled = true;
+          resetSelect(assetIdSelect, '請先選擇類別');
+          assetIdSelect.disabled = true;
+          assetNameDisplay.textContent = '尚未選擇';
+          // 提交成功後，取消所有勾選並清除篩選
+          document.querySelectorAll('#impactCheckboxList input[type="checkbox"]').forEach(cb => cb.checked = false);
+          document.getElementById('impactFilterGroup').value = '';
+          document.getElementById('impactFilterCategory').value = '';
+          applyImpactScopeFilter();
+        }
+        document.getElementById('submitBtn').disabled = false;
+      })
+      .withFailureHandler(function(err) {
+        // 這邊的 handleError 已經包含了 hideLoader 的邏輯
+        handleError(err);
+        document.getElementById('submitBtn').disabled = false;
+      })
+      .submitApplication(formData);
+  });
+</script>
+  </body>
+</html>

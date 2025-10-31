@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <base target="_top">
+    <?!= include('stylesheet'); ?>
+  </head>
+  <body>
+    <div class="container">
+      <h1>系統變更申請</h1>
+      <p>請選擇您要執行的功能。</p>
+      <div class="card-container">
+        <div class="card">
+          <h2>新增申請</h2>
+          <p>提交一份新的系統變更申請單。</p>
+          <a href="<?= ScriptApp.getService().getUrl(); ?>?page=form" class="button">前往新增</a>
+        </div>
+        <div class="card">
+          <h2>查詢我的申請</h2>
+          <p>查看所有申請紀錄與目前狀態。</p>
+          <a href="<?= ScriptApp.getService().getUrl(); ?>?page=myapply" class="button">前往查詢</a>
+        </div>
+        <div class="card">
+          <h2>主管審核</h2>
+          <p>處理待審核的申請案件。</p>
+          <a href="<?= ScriptApp.getService().getUrl(); ?>?page=review" class="button">前往審核</a>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>

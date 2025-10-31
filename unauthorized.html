@@ -1,0 +1,14 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <base target="_top">
+    <?!= include('stylesheet'); ?>
+  </head>
+  <body>
+    <div class="container">
+      <h1>權限不足</h1>
+      <p>抱歉，您沒有權限存取此頁面。請聯繫系統管理員。</p>
+      <a href="<?= ScriptApp.getService().getUrl(); ?>" class="button">返回首頁</a>
+    </div>
+  </body>
+</html>
