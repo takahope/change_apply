@@ -482,6 +482,4 @@ A: 開啟 Apps Script 專案的 Stackdriver Logging，使用 `console.log()` 記
 
 **最後更新日期：** 2025-11-05
 
-**維護者：** IT 部門
-
 **狀態：** ✅ 穩定運行中
