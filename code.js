@@ -141,6 +141,10 @@ function getUserApplications() {
     const allData = sheet.getDataRange().getValues();
     
     // 步驟 1: 定義要顯示的欄位標題與對應的原始欄位索引 (0-based)
+    // First, get the headers to find the rejection reason column index dynamically
+    const headers = allData[0];
+    const rejectReasonIndex = headers.indexOf('拒絕原因');
+    
     const desiredColumns = [
       { header: '申請日期', index: 13 },     // N
       { header: '申請類別', index: 1 },      // B
@@ -153,6 +157,11 @@ function getUserApplications() {
       { header: '申請狀態', index: 18 },     // S
       { header: '審核通過時間', index: 23 },  // X
     ];
+    
+    // Add rejection reason column if it exists in the spreadsheet
+    if (rejectReasonIndex !== -1) {
+      desiredColumns.push({ header: '拒絕原因', index: rejectReasonIndex });
+    }
 
     const desiredHeader = desiredColumns.map(col => col.header);
     if (allData.length <= 1) return [desiredHeader];
