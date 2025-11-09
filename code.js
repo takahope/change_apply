@@ -328,6 +328,58 @@ function processBatchApproval(rowNumbers) {
   }
 }
 
+/**
+ * ✨【新增】處理申請拒絕
+ * @param {number} rowNumber - 要拒絕的申請在 Sheet 中的列號。
+ * @param {string} rejectReason - 拒絕原因。
+ * @returns {string} 執行結果。
+ */
+function processRejection(rowNumber, rejectReason) {
+  try {
+    const sheet = SS.getSheetByName(SHEET_RECORDS_NAME);
+    if (!sheet) throw new Error(`找不到工作表: '${SHEET_RECORDS_NAME}'`);
+    
+    const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+    const approverEmail = Session.getActiveUser().getEmail();
+    const userInfo = getUserInfoFromPermissionsSheet();
+    const approverName = userInfo.approversMap[approverEmail] || '未知審核者';
+    
+    // Find column indices
+    const statusCol = headers.indexOf('申請狀態') + 1;
+    const supervisorCol = headers.indexOf('權責單位主管') + 1;
+    const approverEmailCol = headers.indexOf('審核人帳號') + 1;
+    const applicantEmailCol = headers.indexOf('申請人員帳號') + 1;
+    const assetNameCol = headers.indexOf('資訊資產名稱') + 1;
+    const approvalTimeCol = headers.indexOf('審核時間') + 1;
+    const rejectReasonCol = headers.indexOf('拒絕原因') + 1;
+    
+    if (!statusCol) throw new Error("找不到 '申請狀態' 的欄位標頭。");
+    if (!rejectReasonCol) throw new Error("找不到 '拒絕原因' 的欄位標頭。");
+    
+    const rejectionTime = new Date();
+    
+    // Update the status and rejection information
+    sheet.getRange(rowNumber, statusCol).setValue('已拒絕');
+    if (supervisorCol) sheet.getRange(rowNumber, supervisorCol).setValue(approverName);
+    if (approverEmailCol) sheet.getRange(rowNumber, approverEmailCol).setValue(approverEmail);
+    if (approvalTimeCol) sheet.getRange(rowNumber, approvalTimeCol).setValue(rejectionTime);
+    sheet.getRange(rowNumber, rejectReasonCol).setValue(rejectReason);
+    
+    // Send notification email to applicant
+    const applicantEmail = sheet.getRange(rowNumber, applicantEmailCol).getValue();
+    const assetName = sheet.getRange(rowNumber, assetNameCol).getValue();
+    const subject = `[系統變更申請] 您的申請已被拒絕 - ${assetName}`;
+    const body = `您好，\n\n您申請的系統變更「${assetName}」已被拒絕。\n\n拒絕原因：\n${rejectReason}\n\n如有疑問，請聯繫審核人員。`;
+    
+    sendNotificationEmail(applicantEmail, subject, body);
+    
+    return '申請已成功拒絕，並已通知申請人。';
+  } catch (e) {
+    Logger.log(`processRejection 錯誤: ${e.message} (stack: ${e.stack})`);
+    return `拒絕失敗：${e.message}`;
+  }
+}
+
 function getUserInfoFromPermissionsSheet() {
   const cache = CacheService.getScriptCache();
   const cachedData = cache.get('permissionsData');
