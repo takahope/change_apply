@@ -39,6 +39,22 @@
       </div>
     </div>
 
+    <div id="rejectModal" class="modal">
+      <div class="modal-content">
+        <span class="close-button reject-close">&times;</span>
+        <h3>填寫拒絕原因</h3>
+        <hr>
+        <div class="modal-body">
+          <label for="rejectReason" style="display: block; margin-bottom: 10px; font-weight: bold;">拒絕原因：</label>
+          <textarea id="rejectReason" rows="6" style="width: 100%; padding: 8px; font-size: 14px; border: 1px solid #ccc; border-radius: 4px; resize: vertical;"></textarea>
+          <div style="margin-top: 15px; text-align: right;">
+            <button id="cancelRejectBtn" style="padding: 8px 16px; margin-right: 10px; background-color: #ccc; border: none; cursor: pointer; border-radius: 4px;">取消</button>
+            <button id="confirmRejectBtn" style="padding: 8px 16px; background-color: #f44336; color: white; border: none; cursor: pointer; border-radius: 4px;">確認拒絕</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <script>
       window.addEventListener('load', function() { loadPendingApprovals(); });
 
@@ -80,6 +96,10 @@
             headerRow.appendChild(th);
           }
         });
+        // Add action column header
+        const actionTh = document.createElement('th');
+        actionTh.textContent = '操作';
+        headerRow.appendChild(actionTh);
 
         const rawRowIndex = headers.indexOf('原始列號');
         const assessmentIndex = headers.indexOf('查看變更前評估');
@@ -106,6 +126,22 @@
               tr.appendChild(td);
             }
           });
+          
+          // Add reject button column
+          const actionTd = document.createElement('td');
+          const rejectButton = document.createElement('button');
+          rejectButton.textContent = '拒絕';
+          rejectButton.className = 'reject-button';
+          rejectButton.dataset.rowNumber = rowNumber;
+          rejectButton.style.backgroundColor = '#f44336';
+          rejectButton.style.color = 'white';
+          rejectButton.style.border = 'none';
+          rejectButton.style.padding = '5px 10px';
+          rejectButton.style.cursor = 'pointer';
+          rejectButton.style.borderRadius = '4px';
+          actionTd.appendChild(rejectButton);
+          tr.appendChild(actionTd);
+          
           tableBody.appendChild(tr);
         });
         
@@ -127,19 +163,55 @@
       }
 
       // --- 下方的事件監聽邏輯維持不變 ---
+      let currentRejectRowNumber = null;
+      
       document.getElementById('review-area').addEventListener('click', function(event) {
         if (event.target.classList.contains('view-button')) {
             const details = event.target.dataset.details;
             document.getElementById('modalBody').innerText = details;
             document.getElementById('assessmentModal').style.display = 'block';
         }
+        
+        if (event.target.classList.contains('reject-button')) {
+            currentRejectRowNumber = parseInt(event.target.dataset.rowNumber);
+            document.getElementById('rejectReason').value = '';
+            document.getElementById('rejectModal').style.display = 'block';
+        }
       });
       document.querySelector('.close-button').onclick = function() {
         document.getElementById('assessmentModal').style.display = "none";
       }
+      
+      document.querySelector('.reject-close').onclick = function() {
+        document.getElementById('rejectModal').style.display = "none";
+      }
+      
+      document.getElementById('cancelRejectBtn').onclick = function() {
+        document.getElementById('rejectModal').style.display = "none";
+      }
+      
+      document.getElementById('confirmRejectBtn').onclick = function() {
+        const rejectReason = document.getElementById('rejectReason').value.trim();
+        if (!rejectReason) {
+          alert('請填寫拒絕原因。');
+          return;
+        }
+        
+        this.disabled = true;
+        document.getElementById('cancelRejectBtn').disabled = true;
+        document.getElementById('status').innerText = '處理中，請稍候...';
+        
+        google.script.run
+          .withSuccessHandler(handleRejectSuccess)
+          .withFailureHandler(handleRejectError)
+          .processRejection(currentRejectRowNumber, rejectReason);
+      }
+      
       window.onclick = function(event) {
-        const modal = document.getElementById('assessmentModal');
-        if (event.target == modal) { modal.style.display = "none"; }
+        const assessmentModal = document.getElementById('assessmentModal');
+        const rejectModal = document.getElementById('rejectModal');
+        if (event.target == assessmentModal) { assessmentModal.style.display = "none"; }
+        if (event.target == rejectModal) { rejectModal.style.display = "none"; }
       }
 
       document.getElementById('approveBtn').addEventListener('click', function() {
@@ -168,6 +240,21 @@
         alert('審核操作失敗：' + error.message);
         document.getElementById('status').innerText = '審核失敗，請重試。';
         document.getElementById('approveBtn').disabled = false;
+      }
+      
+      function handleRejectSuccess(responseMessage) {
+        document.getElementById('rejectModal').style.display = "none";
+        document.getElementById('confirmRejectBtn').disabled = false;
+        document.getElementById('cancelRejectBtn').disabled = false;
+        alert(responseMessage);
+        loadPendingApprovals();
+      }
+      
+      function handleRejectError(error) {
+        alert('拒絕操作失敗：' + error.message);
+        document.getElementById('status').innerText = '拒絕失敗，請重試。';
+        document.getElementById('confirmRejectBtn').disabled = false;
+        document.getElementById('cancelRejectBtn').disabled = false;
       }
     </script>
 </body>
