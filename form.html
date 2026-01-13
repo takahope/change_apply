@@ -369,6 +369,11 @@
               <label for="assetIdSelect">資產編號</label>
               <select id="assetIdSelect" required> <option value="">載入中...</option> </select>
             </div>
+
+            <div class="form-field">
+              <label for="assetNameSelect">資產名稱</label>
+              <select id="assetNameSelect"> <option value="">載入中...</option> </select>
+            </div>
             
             <div class="form-field" style="grid-column: 1 / -1;">
                <label>所選資產名稱</label>
@@ -463,6 +468,7 @@
   const groupSelect = document.getElementById('groupSelect');
   const categorySelect = document.getElementById('categorySelect');
   const assetIdSelect = document.getElementById('assetIdSelect');
+  const assetNameSelect = document.getElementById('assetNameSelect');
   const assetNameDisplay = document.getElementById('assetNameDisplay');
   const assetSearchInput = document.getElementById('assetSearchInput');
   const assetSearchResults = document.getElementById('assetSearchResults');
@@ -579,6 +585,7 @@
     document.querySelector('input[name="申請類別"]').value = '';
     document.querySelector('input[name="資訊資產編號"]').value = '';
     document.querySelector('input[name="資訊資產名稱"]').value = '';
+    assetNameSelect.value = '';
     if (!options.preserveSearchInput) {
       assetSearchInput.value = '';
       clearSearchResults();
@@ -609,6 +616,21 @@
     });
   }
 
+  function buildAssetLabelOptions(assetRows) {
+    const seenIds = new Set();
+    const options = [];
+    assetRows.forEach(row => {
+      const assetId = normalizeValue(row[COL_ASSET_ID]);
+      if (!assetId || seenIds.has(assetId)) return;
+      seenIds.add(assetId);
+      options.push({
+        value: assetId,
+        label: formatAssetLabel(assetId, row[COL_ASSET_NAME], row[COL_GROUP], row[COL_CATEGORY])
+      });
+    });
+    return options;
+  }
+
   function refreshAssetSelectors(source) {
     let selectedGroup = groupSelect.value;
     let selectedCategory = categorySelect.value;
@@ -637,6 +659,7 @@
     const groupOptions = getUniqueValues(groupSource, COL_GROUP);
     const categoryOptions = getUniqueValues(categorySource, COL_CATEGORY);
     const assetIdOptions = getUniqueValues(assetSource, COL_ASSET_ID, normalizeValue);
+    const assetNameOptions = buildAssetLabelOptions(assetSource);
 
     populateSelect(groupSelect, groupOptions, true, '請選擇組別');
     if (groupOptions.includes(selectedGroup)) {
@@ -653,6 +676,11 @@
       assetIdSelect.value = selectedAssetId;
     } else if (selectedAssetId) {
       clearAssetSelection();
+    }
+
+    populateSelectWithOptions(assetNameSelect, assetNameOptions, true, '請選擇資產名稱');
+    if (assetNameOptions.some(option => option.value === selectedAssetId)) {
+      assetNameSelect.value = selectedAssetId;
     }
   }
 
@@ -779,6 +807,21 @@
     });
   }
 
+  function populateSelectWithOptions(selectElement, optionsArray, addDefaultOption = true, defaultText = '請選擇...') {
+    selectElement.innerHTML = '';
+    if (addDefaultOption) {
+      selectElement.innerHTML = `<option value="">${defaultText}</option>`;
+    }
+    optionsArray.forEach(optionData => {
+      if (optionData && optionData.value) {
+        const option = document.createElement('option');
+        option.value = optionData.value;
+        option.textContent = optionData.label || optionData.value;
+        selectElement.appendChild(option);
+      }
+    });
+  }
+
   // --- 事件監聽 ---
   assetSearchInput.addEventListener('input', function() {
     updateSearchResults(this.value);
@@ -822,6 +865,16 @@
   });
 
   assetIdSelect.addEventListener('change', function() {
+    const selectedAssetId = this.value;
+    if (!selectedAssetId) {
+      clearAssetSelection();
+      refreshAssetSelectors('asset');
+      return;
+    }
+    selectAssetById(selectedAssetId, true);
+  });
+
+  assetNameSelect.addEventListener('change', function() {
     const selectedAssetId = this.value;
     if (!selectedAssetId) {
       clearAssetSelection();
