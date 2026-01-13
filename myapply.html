@@ -9,7 +9,7 @@
 
     <div class="container">
       <a href="<?= ScriptApp.getService().getUrl(); ?>?page=form" class="button">新增系統變更申請</a>
-      <h1>我的申請紀錄</h1>
+      <h1 id="pageTitle">我的申請紀錄</h1>
       
       <div id="statusMessage" style="display:none; text-align: center; padding: 20px;"></div>
       
@@ -20,6 +20,12 @@
     </div>
 
     <script>
+      const isApprover = <?= isApprover ? 'true' : 'false' ?>;
+      if (isApprover) {
+        const pageTitle = document.getElementById('pageTitle');
+        if (pageTitle) pageTitle.textContent = '全部申請紀錄';
+      }
+
       // ✨【核心修改 2】: 全面重構 renderTable 函數以配合新的 loader
       function renderTable(dataWithHeaders) {
         // 無論成功與否，第一件事就是關閉載入動畫
@@ -30,7 +36,7 @@
 
         // 檢查回傳的資料是否有效 (第一行為標頭，所以長度至少要 > 1 才算有內容)
         if (!Array.isArray(dataWithHeaders) || dataWithHeaders.length <= 1) {
-            statusMessage.innerText = '查無您的申請紀錄。';
+            statusMessage.innerText = isApprover ? '查無申請紀錄。' : '查無您的申請紀錄。';
             statusMessage.style.display = 'block';
             applyTable.style.display = 'none'; // 確保表格是隱藏的
             return;
@@ -72,7 +78,7 @@
       // ✨【核心修改 3】: 修改頁面載入邏輯
       window.addEventListener('load', function() {
         // 1. 立即顯示載入動畫
-        showLoader('正在查詢您的申請紀錄...');
+        showLoader(isApprover ? '正在查詢全部申請紀錄...' : '正在查詢您的申請紀錄...');
         
         // 2. 執行後端腳本
         google.script.run

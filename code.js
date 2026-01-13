@@ -12,7 +12,7 @@ const SS = SpreadsheetApp.getActiveSpreadsheet();
 const SHEET_RECORDS_NAME = '申請紀錄';
 const SHEET_PERMISSIONS_NAME = '權限';
 const SHEET_OPTIONS_NAME = '下拉選單'; // ✨【新增】選項工作表的名稱
-const SHEET_ASSETS_NAME = '資訊資產'; // ✨【新增】資訊資產工作表的名稱作表的名稱
+const SHEET_ASSETS_NAME = '資訊資產'; // ✨【新增】資訊資產工作表的名稱
 
 // --- ✨【核心修改】定義所有需要的欄位索引 (A欄=1, B欄=2, etc.) ---
 const RECORDS_APPLICANT_EMAIL_COL = 16; // P欄: 申請人員帳號
@@ -44,6 +44,7 @@ function doGet(e) {
 
   const template = HtmlService.createTemplateFromFile(page);
   template.currentUser = currentUser;
+  template.isApprover = isCurrentUserApprover(currentUser);
   return template.evaluate().setTitle('系統變更申請');
 }
 
@@ -135,6 +136,7 @@ function submitApplication(formData) {
 function getUserApplications() {
   try {
     const currentUser = Session.getActiveUser().getEmail();
+    const isApprover = isCurrentUserApprover(currentUser);
     const sheet = SS.getSheetByName(SHEET_RECORDS_NAME);
     if (!sheet) throw new Error(`工作表 '${SHEET_RECORDS_NAME}' 不存在。`);
 
@@ -167,7 +169,9 @@ function getUserApplications() {
     if (allData.length <= 1) return [desiredHeader];
 
     const dataRows = allData.slice(1);
-    const userApps = dataRows.filter(row => row && row.length > RECORDS_APPLICANT_EMAIL_COL -1 && row[RECORDS_APPLICANT_EMAIL_COL - 1] === currentUser);
+    const userApps = isApprover
+      ? dataRows.filter(row => row && row.length > RECORDS_APPLICANT_EMAIL_COL - 1 && row[RECORDS_APPLICANT_EMAIL_COL - 1])
+      : dataRows.filter(row => row && row.length > RECORDS_APPLICANT_EMAIL_COL - 1 && row[RECORDS_APPLICANT_EMAIL_COL - 1] === currentUser);
     
     const mappedUserApps = userApps.map(row => {
       return desiredColumns.map(col => {
