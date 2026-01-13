@@ -215,7 +215,7 @@
     </div>
 
     <script>
-      const isApprover = <?= isApprover ? 'true' : 'false' ?>;
+      const isApprover = "<?= isApprover ?>" === "true";
       if (isApprover) {
         const pageTitle = document.getElementById('pageTitle');
         if (pageTitle) pageTitle.textContent = '全部申請紀錄';
