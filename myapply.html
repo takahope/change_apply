@@ -8,7 +8,9 @@
       
       /* Reset/Override some container styles for this page if needed */
       .container {
-        max-width: 1200px; /* Widen the container for better table view */
+        width: 95%;        /* Use almost full width on larger screens */
+        max-width: 1600px; /* Cap it at a very wide size to prevent line length issues on ultrawide monitors */
+        margin: 0 auto;    /* Center the container */
       }
 
       /* Header Section */
