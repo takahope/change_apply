@@ -2,3 +2,4 @@
 .env
 GEMINI.md
 CLAUDE.md
+.gemini/

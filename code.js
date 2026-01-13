@@ -167,27 +167,78 @@ function getUserApplications() {
     }
 
     const desiredHeader = desiredColumns.map(col => col.header);
+    desiredHeader.push('申請單');
     if (allData.length <= 1) return [desiredHeader];
 
     const dataRows = allData.slice(1);
-    const userApps = isApprover
-      ? dataRows.filter(row => row && row.length > RECORDS_APPLICANT_EMAIL_COL - 1 && row[RECORDS_APPLICANT_EMAIL_COL - 1])
-      : dataRows.filter(row => row && row.length > RECORDS_APPLICANT_EMAIL_COL - 1 && row[RECORDS_APPLICANT_EMAIL_COL - 1] === currentUser);
+    const userApps = [];
+    dataRows.forEach((row, index) => {
+      if (!row || row.length <= RECORDS_APPLICANT_EMAIL_COL - 1) return;
+      const rowEmail = row[RECORDS_APPLICANT_EMAIL_COL - 1];
+      if (isApprover ? rowEmail : rowEmail === currentUser) {
+        userApps.push({ row, rowNumber: index + 2 });
+      }
+    });
     
-    const mappedUserApps = userApps.map(row => {
-      return desiredColumns.map(col => {
+    const mappedUserApps = userApps.map(({ row, rowNumber }) => {
+      const mappedRow = desiredColumns.map(col => {
         const cellValue = row[col.index];
         if ((col.header === '申請日期' || col.header === '審核通過時間') && cellValue instanceof Date && !isNaN(cellValue)) {
           return Utilities.formatDate(cellValue, Session.getScriptTimeZone(), "yyyy/MM/dd HH:mm");
         }
         return cellValue;
       });
+      mappedRow.push(rowNumber);
+      return mappedRow;
     });
 
     return [desiredHeader, ...mappedUserApps];
   } catch (e) {
     Logger.log(`getUserApplications 錯誤: ${e.message}`);
     return [['錯誤'], ['讀取紀錄時發生錯誤: ' + e.message]];
+  }
+}
+
+function createApplicationDocument(rowNumber) {
+  try {
+    if (!rowNumber || rowNumber < 2) throw new Error('無效的申請列號。');
+    const sheet = SS.getSheetByName(SHEET_RECORDS_NAME);
+    if (!sheet) throw new Error(`找不到工作表: '${SHEET_RECORDS_NAME}'`);
+
+    const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+    const statusCol = headers.indexOf('申請狀態') + 1;
+    const applicantEmailCol = headers.indexOf('申請人員帳號') + 1;
+    const docLinkCol = headers.indexOf('文件連結') + 1;
+    const recordNumCol = headers.indexOf('紀錄編號') + 1;
+
+    if (!statusCol) throw new Error("找不到 '申請狀態' 的欄位標頭。");
+    if (!applicantEmailCol) throw new Error("找不到 '申請人員帳號' 的欄位標頭。");
+    if (!docLinkCol) throw new Error("找不到 '文件連結' 的欄位標頭。");
+    if (!recordNumCol) throw new Error("找不到 '紀錄編號' 的欄位標頭。");
+
+    const currentUser = Session.getActiveUser().getEmail();
+    const applicantEmail = sheet.getRange(rowNumber, applicantEmailCol).getValue();
+    if (!isCurrentUserApprover(currentUser) && applicantEmail !== currentUser) {
+      throw new Error('權限不足，無法產生申請單。');
+    }
+
+    const status = sheet.getRange(rowNumber, statusCol).getValue();
+    if (status !== '已核准') throw new Error('僅已核准的申請可產生申請單。');
+
+    const existingLink = sheet.getRange(rowNumber, docLinkCol).getValue();
+    if (existingLink) return existingLink;
+
+    const recordNumber = sheet.getRange(rowNumber, recordNumCol).getValue();
+    if (!recordNumber) throw new Error('尚未產生紀錄編號，請確認審核流程完成。');
+
+    generateDocumentForRow(sheet, rowNumber, headers, recordNumber);
+
+    const newLink = sheet.getRange(rowNumber, docLinkCol).getValue();
+    if (!newLink) throw new Error('文件產生失敗，請稍後再試。');
+    return newLink;
+  } catch (e) {
+    Logger.log(`createApplicationDocument 錯誤: ${e.message} (stack: ${e.stack})`);
+    throw new Error(e.message);
   }
 }
 

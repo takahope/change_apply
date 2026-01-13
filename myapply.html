@@ -26,6 +26,48 @@
         if (pageTitle) pageTitle.textContent = '全部申請紀錄';
       }
 
+      function buildPrintButton(rowNumber, status, statusMessage) {
+        const button = document.createElement('button');
+        if (status !== '已核准' || !rowNumber) {
+          button.textContent = '待核准';
+          button.disabled = true;
+          button.style.backgroundColor = '#999';
+          button.style.cursor = 'not-allowed';
+          return button;
+        }
+
+        button.textContent = '生成申請單';
+        button.addEventListener('click', function() {
+          const originalText = button.textContent;
+          button.disabled = true;
+          button.textContent = '處理中...';
+          showLoader('正在產生申請單...');
+
+          google.script.run
+            .withSuccessHandler(url => {
+              if (url) {
+                window.location.href = url;
+                return;
+              }
+              hideLoader('產生失敗');
+              button.disabled = false;
+              button.textContent = originalText;
+              statusMessage.innerText = '產生失敗：未取得文件連結。';
+              statusMessage.style.display = 'block';
+            })
+            .withFailureHandler(err => {
+              hideLoader('產生失敗');
+              button.disabled = false;
+              button.textContent = originalText;
+              statusMessage.innerText = '產生失敗：' + err.message;
+              statusMessage.style.display = 'block';
+            })
+            .createApplicationDocument(rowNumber);
+        });
+
+        return button;
+      }
+
       // ✨【核心修改 2】: 全面重構 renderTable 函數以配合新的 loader
       function renderTable(dataWithHeaders) {
         // 無論成功與否，第一件事就是關閉載入動畫
@@ -45,6 +87,8 @@
         // 資料有效，開始建立表格
         const headers = dataWithHeaders.shift(); // 取出並移除第一行作為標頭
         const data = dataWithHeaders; // 剩下的就是資料
+        const printIndex = headers.indexOf('申請單');
+        const statusIndex = headers.indexOf('申請狀態');
         
         const headerRow = document.getElementById('tableHeader');
         const tableBody = document.getElementById('tableBody');
@@ -61,10 +105,16 @@
         // 建立資料列
         data.forEach(row => {
           const tr = document.createElement('tr');
-          row.forEach(cell => {
+          row.forEach((cell, colIndex) => {
             const td = document.createElement('td');
-            // 處理 null 或 undefined 的情況，顯示為空白
-            td.textContent = (cell === null || cell === undefined) ? '' : cell;
+            if (colIndex === printIndex && printIndex !== -1) {
+              const rowNumber = Number(cell);
+              const status = statusIndex !== -1 ? row[statusIndex] : '';
+              td.appendChild(buildPrintButton(rowNumber, status, statusMessage));
+            } else {
+              // 處理 null 或 undefined 的情況，顯示為空白
+              td.textContent = (cell === null || cell === undefined) ? '' : cell;
+            }
             tr.appendChild(td);
           });
           tableBody.appendChild(tr);
