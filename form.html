@@ -75,6 +75,54 @@
         margin-bottom: 24px;
         border: 1px solid #ebecf0;
       }
+
+      .asset-search {
+        grid-column: 1 / -1;
+        position: relative;
+      }
+
+      .asset-search-results {
+        position: absolute;
+        top: calc(100% + 6px);
+        left: 0;
+        right: 0;
+        background-color: white;
+        border: 1px solid #dfe1e6;
+        border-radius: 6px;
+        box-shadow: 0 6px 16px rgba(9, 30, 66, 0.2);
+        max-height: 240px;
+        overflow-y: auto;
+        display: none;
+        z-index: 10;
+      }
+
+      .asset-search-results.open {
+        display: block;
+      }
+
+      .asset-search-result {
+        width: 100%;
+        text-align: left;
+        border: none;
+        background: white;
+        padding: 10px 12px;
+        font-size: 14px;
+        color: #172b4d;
+        cursor: pointer;
+        transition: background-color 0.15s;
+      }
+
+      .asset-search-result:hover,
+      .asset-search-result:focus {
+        background-color: #f4f5f7;
+        outline: none;
+      }
+
+      .asset-search-empty {
+        padding: 10px 12px;
+        font-size: 14px;
+        color: #5e6c84;
+      }
       
       .form-field {
         margin-bottom: 20px;
@@ -295,26 +343,31 @@
         </a>
       </div>
       
-      <p class="page-description">請依序選擇要變更的資訊資產，您的姓名與申請日期將由系統自動記錄。</p>
+      <p class="page-description">可先使用搜尋或任一選單篩選資產，選到資產後會自動帶入組別、類別與資產編號。</p>
       
       <div class="form-card">
         <form id="applyForm">
           
           <!-- Asset Selection Section -->
           <div class="asset-selection-grid">
+            <div class="form-field asset-search">
+              <label for="assetSearchInput">搜尋資產</label>
+              <input type="text" id="assetSearchInput" placeholder="輸入資產編號、名稱、組別或類別" autocomplete="off">
+              <div id="assetSearchResults" class="asset-search-results" role="listbox"></div>
+            </div>
             <div class="form-field">
-              <label for="groupSelect">1. 選擇組別</label>
+              <label for="groupSelect">組別</label>
               <select id="groupSelect" required> <option value="">載入中...</option> </select>
             </div>
             
             <div class="form-field">
-              <label for="categorySelect">2. 選擇類別</label>
-              <select id="categorySelect" required disabled> <option value="">請先選擇組別</option> </select>
+              <label for="categorySelect">類別</label>
+              <select id="categorySelect" required> <option value="">載入中...</option> </select>
             </div>
             
             <div class="form-field">
-              <label for="assetIdSelect">3. 選擇資產編號</label>
-              <select id="assetIdSelect" required disabled> <option value="">請先選擇類別</option> </select>
+              <label for="assetIdSelect">資產編號</label>
+              <select id="assetIdSelect" required> <option value="">載入中...</option> </select>
             </div>
             
             <div class="form-field" style="grid-column: 1 / -1;">
@@ -401,6 +454,8 @@
   <script>
   // --- 全域變數 ---
   let allAssetData = [];
+  let assetById = new Map();
+  let assetSearchIndex = [];
   let loadedDropdownOptions = {};
   let loadTasksCompleted = 0;
   const TOTAL_LOAD_TASKS = 2; // 維持不變，我們有兩項非同步載入任務
@@ -409,6 +464,15 @@
   const categorySelect = document.getElementById('categorySelect');
   const assetIdSelect = document.getElementById('assetIdSelect');
   const assetNameDisplay = document.getElementById('assetNameDisplay');
+  const assetSearchInput = document.getElementById('assetSearchInput');
+  const assetSearchResults = document.getElementById('assetSearchResults');
+  const COL_ASSET_ID = 0;
+  const COL_ASSET_NAME = 2;
+  const COL_GROUP = 3;
+  const COL_CATEGORY = 4;
+  const COL_APPLY_TYPE = 6;
+  const SEARCH_RESULT_LIMIT = 8;
+  let searchResultsHideTimer = null;
 
   // --- 頁面載入邏輯 ---
   window.addEventListener('load', function() {
@@ -438,9 +502,9 @@
       return;
     }
     allAssetData = data;
-    const COL_GROUP = 3;
-    const groups = [...new Set(allAssetData.map(row => row[COL_GROUP]))].filter(g => g);
-    populateSelect(groupSelect, groups);
+    buildAssetSearchIndex();
+    refreshAssetSelectors('init');
+    clearAssetSelection();
     populateImpactScopeFiltersAndCheckboxes();
     // 新增下面這一行：通知任務管理器，此項任務已完成
     onTaskComplete('資產資料已載入...');
@@ -466,15 +530,195 @@
     console.error('GAS Error:', error);
   }
 
+  function normalizeValue(value) {
+    if (value === null || value === undefined) return '';
+    return String(value).trim();
+  }
+
+  function getUniqueValues(rows, index, normalizer) {
+    const seen = new Set();
+    const values = [];
+    rows.forEach(row => {
+      const value = normalizer ? normalizer(row[index]) : row[index];
+      if (value && !seen.has(value)) {
+        seen.add(value);
+        values.push(value);
+      }
+    });
+    return values;
+  }
+
+  function formatAssetLabel(assetId, assetName, group, category) {
+    const namePart = assetName || '未命名資產';
+    const idPart = assetId ? `（${assetId}）` : '';
+    const groupCategory = [group, category].filter(Boolean).join(' / ');
+    return groupCategory ? `${namePart}${idPart} - ${groupCategory}` : `${namePart}${idPart}`;
+  }
+
+  function buildAssetSearchIndex() {
+    assetById = new Map();
+    assetSearchIndex = [];
+    allAssetData.forEach(row => {
+      const assetId = normalizeValue(row[COL_ASSET_ID]);
+      if (!assetId) return;
+      const assetName = row[COL_ASSET_NAME] || '';
+      const group = row[COL_GROUP] || '';
+      const category = row[COL_CATEGORY] || '';
+      assetById.set(assetId, row);
+      assetSearchIndex.push({
+        assetId,
+        label: formatAssetLabel(assetId, assetName, group, category),
+        haystack: `${assetId} ${assetName} ${group} ${category}`.toLowerCase()
+      });
+    });
+  }
+
+  function clearAssetSelection(options = {}) {
+    assetNameDisplay.textContent = '尚未選擇';
+    assetNameDisplay.classList.add('empty');
+    document.querySelector('input[name="申請類別"]').value = '';
+    document.querySelector('input[name="資訊資產編號"]').value = '';
+    document.querySelector('input[name="資訊資產名稱"]').value = '';
+    if (!options.preserveSearchInput) {
+      assetSearchInput.value = '';
+      clearSearchResults();
+    }
+  }
+
+  function applyAssetSelection(assetRow, options = {}) {
+    const assetId = normalizeValue(assetRow[COL_ASSET_ID]);
+    const assetName = assetRow[COL_ASSET_NAME];
+    const group = assetRow[COL_GROUP];
+    const category = assetRow[COL_CATEGORY];
+    assetNameDisplay.textContent = assetName || '未命名資產';
+    assetNameDisplay.classList.remove('empty');
+    document.querySelector('input[name="申請類別"]').value = assetRow[COL_APPLY_TYPE] || '';
+    document.querySelector('input[name="資訊資產編號"]').value = assetId || '';
+    document.querySelector('input[name="資訊資產名稱"]').value = assetName || '';
+    if (options.syncSearchInput) {
+      assetSearchInput.value = formatAssetLabel(assetId, assetName, group, category);
+    }
+  }
+
+  function filterAssets(filters) {
+    return allAssetData.filter(row => {
+      if (filters.group && row[COL_GROUP] !== filters.group) return false;
+      if (filters.category && row[COL_CATEGORY] !== filters.category) return false;
+      if (filters.assetId && normalizeValue(row[COL_ASSET_ID]) !== normalizeValue(filters.assetId)) return false;
+      return true;
+    });
+  }
+
+  function refreshAssetSelectors(source) {
+    let selectedGroup = groupSelect.value;
+    let selectedCategory = categorySelect.value;
+    const selectedAssetId = assetIdSelect.value;
+
+    if (selectedGroup && selectedCategory) {
+      const comboMatches = filterAssets({ group: selectedGroup, category: selectedCategory });
+      if (comboMatches.length === 0) {
+        if (source === 'group') {
+          selectedCategory = '';
+        } else if (source === 'category') {
+          selectedGroup = '';
+        } else {
+          selectedCategory = '';
+        }
+      }
+    }
+
+    const groupSource = selectedCategory ? filterAssets({ category: selectedCategory }) : allAssetData;
+    const categorySource = selectedGroup ? filterAssets({ group: selectedGroup }) : allAssetData;
+    const assetSource = filterAssets({
+      group: selectedGroup || '',
+      category: selectedCategory || ''
+    });
+
+    const groupOptions = getUniqueValues(groupSource, COL_GROUP);
+    const categoryOptions = getUniqueValues(categorySource, COL_CATEGORY);
+    const assetIdOptions = getUniqueValues(assetSource, COL_ASSET_ID, normalizeValue);
+
+    populateSelect(groupSelect, groupOptions, true, '請選擇組別');
+    if (groupOptions.includes(selectedGroup)) {
+      groupSelect.value = selectedGroup;
+    }
+
+    populateSelect(categorySelect, categoryOptions, true, '請選擇類別');
+    if (categoryOptions.includes(selectedCategory)) {
+      categorySelect.value = selectedCategory;
+    }
+
+    populateSelect(assetIdSelect, assetIdOptions, true, '請選擇資產編號');
+    if (assetIdOptions.includes(selectedAssetId)) {
+      assetIdSelect.value = selectedAssetId;
+    } else if (selectedAssetId) {
+      clearAssetSelection();
+    }
+  }
+
+  function clearSearchResults() {
+    assetSearchResults.innerHTML = '';
+    assetSearchResults.classList.remove('open');
+  }
+
+  function renderSearchResults(results) {
+    assetSearchResults.innerHTML = '';
+    if (results.length === 0) {
+      const empty = document.createElement('div');
+      empty.className = 'asset-search-empty';
+      empty.textContent = '找不到符合的資產';
+      assetSearchResults.appendChild(empty);
+      assetSearchResults.classList.add('open');
+      return;
+    }
+
+    results.forEach(result => {
+      const item = document.createElement('button');
+      item.type = 'button';
+      item.className = 'asset-search-result';
+      item.setAttribute('role', 'option');
+      item.dataset.assetId = result.assetId;
+      item.textContent = result.label;
+      item.addEventListener('click', function() {
+        selectAssetById(result.assetId, true);
+      });
+      assetSearchResults.appendChild(item);
+    });
+    assetSearchResults.classList.add('open');
+  }
+
+  function updateSearchResults(query) {
+    const normalized = query.trim().toLowerCase();
+    if (!normalized) {
+      clearSearchResults();
+      return;
+    }
+    const matches = assetSearchIndex
+      .filter(item => item.haystack.includes(normalized))
+      .slice(0, SEARCH_RESULT_LIMIT);
+    renderSearchResults(matches);
+  }
+
+  function selectAssetById(assetId, syncSearchInput) {
+    const normalizedAssetId = normalizeValue(assetId);
+    const assetRow = assetById.get(normalizedAssetId);
+    if (!assetRow) return;
+    groupSelect.value = assetRow[COL_GROUP] || '';
+    categorySelect.value = assetRow[COL_CATEGORY] || '';
+    assetIdSelect.value = normalizedAssetId;
+    applyAssetSelection(assetRow, { syncSearchInput: syncSearchInput });
+    refreshAssetSelectors('asset');
+    clearSearchResults();
+  }
+
   function populateImpactScopeFiltersAndCheckboxes() {
-    const COL_GROUP = 3, COL_CATEGORY = 4, COL_ASSET_NAME = 2;
     const impactFilterGroup = document.getElementById('impactFilterGroup');
     const impactFilterCategory = document.getElementById('impactFilterCategory');
     const checkboxList = document.getElementById('impactCheckboxList');
     checkboxList.innerHTML = '載入中...';
 
-    const groups = [...new Set(allAssetData.map(row => row[COL_GROUP]))].filter(g => g);
-    const categories = [...new Set(allAssetData.map(row => row[COL_CATEGORY]))].filter(c => c);
+    const groups = getUniqueValues(allAssetData, COL_GROUP);
+    const categories = getUniqueValues(allAssetData, COL_CATEGORY);
     populateSelect(impactFilterGroup, groups, true, '所有組別');
     populateSelect(impactFilterCategory, categories, true, '所有類別');
     
@@ -535,61 +779,56 @@
     });
   }
 
-  function resetSelect(selectElement, defaultText) {
-    selectElement.innerHTML = `<option value="">${defaultText}</option>`;
-  }
-  
-  // --- 事件監聽 (維持不變) ---
-  groupSelect.addEventListener('change', function() {
-    resetSelect(categorySelect, '請選擇類別');
-    resetSelect(assetIdSelect, '請先選擇類別');
-    assetNameDisplay.textContent = '尚未選擇';
-    assetNameDisplay.classList.add('empty');
-    categorySelect.disabled = true;
-    assetIdSelect.disabled = true;
-    const selectedGroup = this.value;
-    if (selectedGroup) {
-      const COL_GROUP = 3, COL_CATEGORY = 4;
-      const categories = [...new Set(allAssetData.filter(row => row[COL_GROUP] === selectedGroup).map(row => row[COL_CATEGORY]))].filter(c => c);
-      populateSelect(categorySelect, categories);
-      categorySelect.disabled = false;
+  // --- 事件監聽 ---
+  assetSearchInput.addEventListener('input', function() {
+    updateSearchResults(this.value);
+  });
+
+  assetSearchInput.addEventListener('focus', function() {
+    if (this.value.trim()) {
+      updateSearchResults(this.value);
     }
   });
 
-  categorySelect.addEventListener('change', function() {
-    resetSelect(assetIdSelect, '請選擇資產編號');
-    assetNameDisplay.textContent = '尚未選擇';
-    assetNameDisplay.classList.add('empty');
-    assetIdSelect.disabled = true;
-    const selectedGroup = groupSelect.value;
-    const selectedCategory = this.value;
-    if (selectedCategory) {
-      const COL_GROUP = 3, COL_CATEGORY = 4, COL_ASSET_ID = 0;
-      const assetIds = allAssetData.filter(row => row[COL_GROUP] === selectedGroup && row[COL_CATEGORY] === selectedCategory).map(row => row[COL_ASSET_ID]).filter(id => id);
-      populateSelect(assetIdSelect, assetIds);
-      assetIdSelect.disabled = false;
+  assetSearchInput.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') {
+      const firstResult = assetSearchResults.querySelector('.asset-search-result');
+      if (firstResult) {
+        e.preventDefault();
+        firstResult.click();
+      }
     }
+    if (e.key === 'Escape') {
+      clearSearchResults();
+    }
+  });
+
+  assetSearchInput.addEventListener('blur', function() {
+    searchResultsHideTimer = setTimeout(clearSearchResults, 150);
+  });
+
+  assetSearchResults.addEventListener('mousedown', function() {
+    if (searchResultsHideTimer) {
+      clearTimeout(searchResultsHideTimer);
+    }
+  });
+
+  groupSelect.addEventListener('change', function() {
+    refreshAssetSelectors('group');
+  });
+
+  categorySelect.addEventListener('change', function() {
+    refreshAssetSelectors('category');
   });
 
   assetIdSelect.addEventListener('change', function() {
     const selectedAssetId = this.value;
-    if (selectedAssetId) {
-      const COL_ASSET_ID = 0, COL_ASSET_NAME = 2, COL_APPLY_TYPE = 6;
-      const selectedAsset = allAssetData.find(row => row[COL_ASSET_ID] === selectedAssetId);
-      if (selectedAsset) {
-        assetNameDisplay.textContent = selectedAsset[COL_ASSET_NAME];
-        assetNameDisplay.classList.remove('empty');
-        document.querySelector('input[name="申請類別"]').value = selectedAsset[COL_APPLY_TYPE];
-        document.querySelector('input[name="資訊資產編號"]').value = selectedAsset[COL_ASSET_ID];
-        document.querySelector('input[name="資訊資產名稱"]').value = selectedAsset[COL_ASSET_NAME];
-      }
-    } else {
-      assetNameDisplay.textContent = '尚未選擇';
-      assetNameDisplay.classList.add('empty');
-      document.querySelector('input[name="申請類別"]').value = '';
-      document.querySelector('input[name="資訊資產編號"]').value = '';
-      document.querySelector('input[name="資訊資產名稱"]').value = '';
+    if (!selectedAssetId) {
+      clearAssetSelection();
+      refreshAssetSelectors('asset');
+      return;
     }
+    selectAssetById(selectedAssetId, true);
   });
 
   document.getElementById('impactFilterGroup').addEventListener('change', applyImpactScopeFilter);
@@ -622,12 +861,7 @@
           form.reset();
           initializeAssetSelectors(allAssetData);
           initializeDropdowns(loadedDropdownOptions);
-          resetSelect(categorySelect, '請先選擇組別');
-          categorySelect.disabled = true;
-          resetSelect(assetIdSelect, '請先選擇類別');
-          assetIdSelect.disabled = true;
-          assetNameDisplay.textContent = '尚未選擇';
-          assetNameDisplay.classList.add('empty');
+          clearAssetSelection();
           // 提交成功後，取消所有勾選並清除篩選
           document.querySelectorAll('#impactCheckboxList input[type="checkbox"]').forEach(cb => cb.checked = false);
           document.getElementById('impactFilterGroup').value = '';
