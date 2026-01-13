@@ -123,6 +123,39 @@
         font-size: 14px;
         color: #5e6c84;
       }
+
+      .asset-name-row {
+        grid-column: 1 / -1;
+      }
+
+      .asset-name-controls {
+        display: flex;
+        gap: 12px;
+        align-items: center;
+      }
+
+      .asset-name-controls select {
+        flex: 1 1 0;
+        min-width: 0;
+        width: auto;
+      }
+
+      .asset-reset-button {
+        padding: 10px 14px;
+        font-size: 14px;
+        background-color: white;
+        border: 1px solid #dfe1e6;
+        border-radius: 4px;
+        cursor: pointer;
+        color: #5e6c84;
+        transition: all 0.2s;
+        white-space: nowrap;
+      }
+
+      .asset-reset-button:hover {
+        background-color: #ebecf0;
+        color: #172b4d;
+      }
       
       .form-field {
         margin-bottom: 20px;
@@ -370,9 +403,12 @@
               <select id="assetIdSelect" required> <option value="">載入中...</option> </select>
             </div>
 
-            <div class="form-field">
+            <div class="form-field asset-name-row">
               <label for="assetNameSelect">資產名稱</label>
-              <select id="assetNameSelect"> <option value="">載入中...</option> </select>
+              <div class="asset-name-controls">
+                <select id="assetNameSelect"> <option value="">載入中...</option> </select>
+                <button type="button" id="resetAssetFilters" class="asset-reset-button">清除全部</button>
+              </div>
             </div>
             
             <div class="form-field" style="grid-column: 1 / -1;">
@@ -472,6 +508,7 @@
   const assetNameDisplay = document.getElementById('assetNameDisplay');
   const assetSearchInput = document.getElementById('assetSearchInput');
   const assetSearchResults = document.getElementById('assetSearchResults');
+  const resetAssetFiltersButton = document.getElementById('resetAssetFilters');
   const COL_ASSET_ID = 0;
   const COL_ASSET_NAME = 2;
   const COL_GROUP = 3;
@@ -590,6 +627,15 @@
       assetSearchInput.value = '';
       clearSearchResults();
     }
+  }
+
+  function resetAssetFilters() {
+    groupSelect.value = '';
+    categorySelect.value = '';
+    assetIdSelect.value = '';
+    assetNameSelect.value = '';
+    clearAssetSelection();
+    refreshAssetSelectors('init');
   }
 
   function applyAssetSelection(assetRow, options = {}) {
@@ -883,6 +929,8 @@
     }
     selectAssetById(selectedAssetId, true);
   });
+
+  resetAssetFiltersButton.addEventListener('click', resetAssetFilters);
 
   document.getElementById('impactFilterGroup').addEventListener('change', applyImpactScopeFilter);
   document.getElementById('impactFilterCategory').addEventListener('change', applyImpactScopeFilter);
