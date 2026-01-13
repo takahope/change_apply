@@ -248,17 +248,33 @@
         
         button.addEventListener('click', function() {
           const originalText = button.textContent;
+          const newTab = window.open('', '_blank');
           button.disabled = true;
           button.textContent = '處理中...';
           button.classList.remove('primary-action'); // Visually indicate loading state
           showLoader('正在產生申請單...');
 
+          if (!newTab) {
+            hideLoader('請允許彈出視窗');
+            button.disabled = false;
+            button.textContent = originalText;
+            button.classList.add('primary-action');
+            statusMessage.innerText = '無法開啟新分頁，請允許彈出視窗後再試。';
+            statusMessage.style.display = 'block';
+            return;
+          }
+
           google.script.run
             .withSuccessHandler(url => {
               if (url) {
-                window.location.href = url;
+                newTab.location.href = url;
+                hideLoader('申請單已開啟');
+                button.disabled = false;
+                button.textContent = originalText;
+                button.classList.add('primary-action');
                 return;
               }
+              newTab.close();
               hideLoader('產生失敗');
               button.disabled = false;
               button.textContent = originalText;
@@ -267,6 +283,7 @@
               statusMessage.style.display = 'block';
             })
             .withFailureHandler(err => {
+              newTab.close();
               hideLoader('產生失敗');
               button.disabled = false;
               button.textContent = originalText;
