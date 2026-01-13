@@ -156,6 +156,14 @@
         background-color: #ebecf0;
         color: #172b4d;
       }
+
+      .apply-reason-other {
+        display: none;
+      }
+
+      .apply-reason-other.visible {
+        display: block;
+      }
       
       .form-field {
         margin-bottom: 20px;
@@ -432,6 +440,11 @@
             <label for="applyReason">申請原因</label>
             <select id="applyReason" name="申請原因" required> <option value="">載入中...</option> </select>
           </div>
+
+          <div class="form-field apply-reason-other" id="applyReasonOtherField">
+            <label for="applyReasonOtherInput">其他原因說明</label>
+            <input type="text" id="applyReasonOtherInput" placeholder="請輸入原因說明" disabled>
+          </div>
           
           <div class="form-field">
             <label for="applyDescription">申請說明</label>
@@ -514,12 +527,16 @@
   const assetSearchInput = document.getElementById('assetSearchInput');
   const assetSearchResults = document.getElementById('assetSearchResults');
   const resetAssetFiltersButton = document.getElementById('resetAssetFilters');
+  const applyReasonSelect = document.getElementById('applyReason');
+  const applyReasonOtherField = document.getElementById('applyReasonOtherField');
+  const applyReasonOtherInput = document.getElementById('applyReasonOtherInput');
   const COL_ASSET_ID = 0;
   const COL_ASSET_NAME = 2;
   const COL_GROUP = 3;
   const COL_CATEGORY = 4;
   const COL_APPLY_TYPE = 6;
   const SEARCH_RESULT_LIMIT = 8;
+  const OTHER_REASON_VALUE = '其他';
   let searchResultsHideTimer = null;
 
   // --- 頁面載入邏輯 ---
@@ -539,6 +556,7 @@
         populateSelect(selectElement, optionsData[fieldName]);
       }
     }
+    toggleApplyReasonOtherField();
     // 新增下面這一行：通知任務管理器，此項任務已完成
     onTaskComplete('表單選項已載入...');
   }
@@ -641,6 +659,18 @@
     assetNameSelect.value = '';
     clearAssetSelection();
     refreshAssetSelectors('init');
+  }
+
+  function toggleApplyReasonOtherField() {
+    const shouldShow = applyReasonSelect.value === OTHER_REASON_VALUE;
+    applyReasonOtherField.classList.toggle('visible', shouldShow);
+    applyReasonOtherInput.disabled = !shouldShow;
+    applyReasonOtherInput.required = shouldShow;
+    if (shouldShow) {
+      applyReasonOtherInput.focus();
+    } else {
+      applyReasonOtherInput.value = '';
+    }
   }
 
   function applyAssetSelection(assetRow, options = {}) {
@@ -936,6 +966,7 @@
   });
 
   resetAssetFiltersButton.addEventListener('click', resetAssetFilters);
+  applyReasonSelect.addEventListener('change', toggleApplyReasonOtherField);
 
   document.getElementById('impactFilterGroup').addEventListener('change', applyImpactScopeFilter);
   document.getElementById('impactFilterCategory').addEventListener('change', applyImpactScopeFilter);
@@ -956,11 +987,20 @@
     });
 
     const applyReason = formData['申請原因'] || '';
+    const otherReasonInput = applyReasonOtherInput.value.trim();
+    if (applyReason === OTHER_REASON_VALUE && !otherReasonInput) {
+      applyReasonOtherInput.focus();
+      document.getElementById('status').innerText = '請填寫其他原因說明。';
+      document.getElementById('status').style.color = '#de350b';
+      document.getElementById('submitBtn').disabled = false;
+      return;
+    }
+    const finalApplyReason = applyReason === OTHER_REASON_VALUE ? otherReasonInput : applyReason;
     const applyDescription = formData['申請說明'] || '';
-    if (applyReason && applyDescription) {
-      formData['申請說明'] = `因${applyReason}，故進行${applyDescription}作業`;
-    } else if (applyReason) {
-      formData['申請說明'] = `因${applyReason}進行變更`;
+    if (finalApplyReason && applyDescription) {
+      formData['申請說明'] = `因${finalApplyReason}，故進行${applyDescription}變更`;
+    } else if (finalApplyReason) {
+      formData['申請說明'] = `因${finalApplyReason}進行變更`;
     } else if (applyDescription) {
       formData['申請說明'] = `進行${applyDescription}變更`;
     }
