@@ -3,27 +3,137 @@
   <head>
     <base target="_top">
     <?!= include('stylesheet'); ?>
+    <style>
+      /* --- Landing Page Specific Styles --- */
+      
+      .hero-section {
+        text-align: center;
+        padding: 40px 0 20px;
+        margin-bottom: 20px;
+      }
+      
+      .hero-section h1 {
+        font-size: 32px;
+        color: #172b4d;
+        margin-bottom: 12px;
+        font-weight: 600;
+      }
+      
+      .hero-section p {
+        font-size: 16px;
+        color: #5e6c84;
+        max-width: 600px;
+        margin: 0 auto;
+        line-height: 1.5;
+      }
+      
+      .card-container {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        gap: 24px;
+        margin-top: 20px;
+      }
+      
+      .card {
+        background: white;
+        border: 1px solid #dfe1e6;
+        border-radius: 8px;
+        padding: 32px 24px;
+        text-align: center;
+        transition: transform 0.2s, box-shadow 0.2s;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        height: 100%; /* Make cards equal height */
+        box-sizing: border-box;
+      }
+      
+      .card:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 8px 16px -4px rgba(9, 30, 66, 0.25), 0 0 1px rgba(9, 30, 66, 0.31);
+        border-color: #c1c7d0;
+      }
+      
+      .card-icon {
+        font-size: 48px;
+        margin-bottom: 20px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 80px;
+        height: 80px;
+        background-color: #f4f5f7;
+        border-radius: 50%;
+        color: #0052cc;
+      }
+      
+      .card h2 {
+        margin: 0 0 12px 0;
+        font-size: 20px;
+        color: #172b4d;
+        font-weight: 600;
+      }
+      
+      .card p {
+        color: #6b778c;
+        margin-bottom: 24px;
+        line-height: 1.5;
+        flex-grow: 1; /* Push button to bottom */
+      }
+      
+      /* Override general button styles for landing cards */
+      .card .button {
+        width: 100%;
+        box-sizing: border-box;
+        padding: 10px 0;
+        font-weight: 500;
+        letter-spacing: 0.5px;
+      }
+      
+      /* Subtle footer or version info if needed */
+      .footer-info {
+        text-align: center;
+        margin-top: 40px;
+        font-size: 12px;
+        color: #97a0af;
+      }
+    </style>
   </head>
   <body>
     <div class="container">
-      <h1>系統變更申請</h1>
-      <p>請選擇您要執行的功能。</p>
+      <div class="hero-section">
+        <h1>系統變更申請平台</h1>
+        <p>歡迎使用系統變更申請服務。請選擇下方的功能區塊以開始您的作業。</p>
+      </div>
+      
       <div class="card-container">
+        <!-- Card 1: New Application -->
         <div class="card">
+          <div class="card-icon">📝</div>
           <h2>新增申請</h2>
-          <p>提交一份新的系統變更申請單。</p>
+          <p>填寫表單以提交一份新的系統變更申請單，啟動審核流程。</p>
           <a href="<?= ScriptApp.getService().getUrl(); ?>?page=form" class="button">前往新增</a>
         </div>
+        
+        <!-- Card 2: My Applications -->
         <div class="card">
-          <h2>查詢我的申請</h2>
-          <p>查看所有申請紀錄與目前狀態。</p>
+          <div class="card-icon">📂</div>
+          <h2>我的申請紀錄</h2>
+          <p>查詢您過往提交的所有申請紀錄，追蹤目前的審核進度與狀態。</p>
           <a href="<?= ScriptApp.getService().getUrl(); ?>?page=myapply" class="button">前往查詢</a>
         </div>
+        
+        <!-- Card 3: Manager Review -->
         <div class="card">
-          <h2>主管審核</h2>
-          <p>處理待審核的申請案件。</p>
+          <div class="card-icon">⚖️</div>
+          <h2>主管審核專區</h2>
+          <p>僅限授權主管使用。檢視待審核案件，執行核准或駁回操作。</p>
           <a href="<?= ScriptApp.getService().getUrl(); ?>?page=review" class="button">前往審核</a>
         </div>
+      </div>
+      
+      <div class="footer-info">
+        系統版本 v1.0 &copy; 2026 System Change Request Platform
       </div>
     </div>
   </body>

@@ -4,53 +4,398 @@
     <meta charset="UTF-8">
     <base target="_top">
     <?!= include('stylesheet'); ?>
+    <style>
+      /* --- Form Page Specific Styles --- */
+      
+      .container {
+        max-width: 800px;
+      }
+
+      /* Header Section */
+      .page-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 24px;
+        padding-bottom: 16px;
+        border-bottom: 1px solid #ebecf0;
+      }
+      
+      .header-left {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+      }
+
+      .back-link {
+        color: #5e6c84;
+        font-size: 14px;
+        text-decoration: none;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+      }
+      
+      .back-link:hover {
+        color: #0052cc;
+        text-decoration: underline;
+      }
+
+      .page-header h1 {
+        margin: 0;
+        font-size: 24px;
+        color: #172b4d;
+        font-weight: 600;
+      }
+      
+      .page-description {
+        margin-top: -16px;
+        margin-bottom: 24px;
+        color: #5e6c84;
+        font-size: 14px;
+      }
+
+      /* Form Card */
+      .form-card {
+        background: white;
+        border: 1px solid #dfe1e6;
+        border-radius: 8px;
+        padding: 32px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.12);
+      }
+      
+      /* Asset Selection Grid */
+      .asset-selection-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 20px;
+        background-color: #f4f5f7;
+        padding: 20px;
+        border-radius: 8px;
+        margin-bottom: 24px;
+        border: 1px solid #ebecf0;
+      }
+      
+      .form-field {
+        margin-bottom: 20px;
+      }
+      
+      .form-field label {
+        display: block;
+        margin-bottom: 6px;
+        font-weight: 600;
+        color: #172b4d;
+        font-size: 14px;
+      }
+      
+      .form-field select,
+      .form-field input[type="text"],
+      .form-field textarea {
+        width: 100%;
+        padding: 10px 12px;
+        border: 1px solid #dfe1e6; /* Standard border color */
+        border-radius: 4px; /* Slightly sharper corners */
+        background-color: #fafbfc; /* Light background */
+        font-size: 14px;
+        color: #172b4d;
+        transition: background-color 0.2s, border-color 0.2s, box-shadow 0.2s;
+        box-sizing: border-box;
+      }
+      
+      .form-field select:focus,
+      .form-field input[type="text"]:focus,
+      .form-field textarea:focus {
+        background-color: white;
+        border-color: #4c9aff;
+        outline: none;
+        box-shadow: 0 0 0 2px rgba(76, 154, 255, 0.2); /* Focus ring */
+      }
+      
+      .form-field select:disabled {
+        background-color: #ebecf0;
+        color: #a5adba;
+        cursor: not-allowed;
+      }
+      
+      .asset-display {
+        padding: 10px 12px;
+        background-color: #e3fcef; /* Greenish background for selected item */
+        color: #006644;
+        border: 1px solid #b3d4ff; /* Just a placeholder border, overridden below */
+        border-color: rgba(9, 30, 66, 0.08);
+        border-radius: 4px;
+        font-weight: 500;
+        font-size: 14px;
+        min-height: 40px; /* Match input height */
+        display: flex;
+        align-items: center;
+      }
+      .asset-display.empty {
+        background-color: #ebecf0;
+        color: #5e6c84;
+      }
+
+      /* Fieldset Styling */
+      fieldset {
+        border: 1px solid #dfe1e6;
+        border-radius: 8px;
+        padding: 24px;
+        margin: 0 0 24px 0;
+        background-color: #fff;
+      }
+      
+      legend {
+        font-weight: 600;
+        color: #0052cc;
+        padding: 0 10px;
+        font-size: 16px;
+      }
+
+      /* Impact Scope Styles */
+      .impact-container {
+        border: 1px solid #dfe1e6;
+        border-radius: 4px;
+        overflow: hidden;
+      }
+      
+      .impact-scope-filters {
+        display: flex;
+        gap: 12px;
+        padding: 12px;
+        background-color: #f4f5f7;
+        border-bottom: 1px solid #dfe1e6;
+        flex-wrap: wrap;
+      }
+      
+      .impact-scope-filters .filter-group {
+        flex: 1;
+        min-width: 120px;
+      }
+      
+      .impact-scope-filters select {
+        width: 100%;
+        padding: 6px;
+        font-size: 13px;
+        border: 1px solid #dfe1e6;
+        border-radius: 3px;
+        background-color: white;
+      }
+      
+      .impact-scope-filters button {
+        padding: 6px 12px;
+        font-size: 13px;
+        background-color: white;
+        border: 1px solid #dfe1e6;
+        border-radius: 3px;
+        cursor: pointer;
+        color: #5e6c84;
+        transition: all 0.2s;
+      }
+      
+      .impact-scope-filters button:hover {
+        background-color: #ebecf0;
+        color: #172b4d;
+      }
+
+      .impact-scope-checkbox-list {
+        height: 200px;
+        overflow-y: auto;
+        padding: 12px;
+        background-color: white;
+      }
+      
+      .checkbox-item {
+        display: flex;
+        align-items: center;
+        padding: 6px 8px;
+        border-radius: 3px;
+        transition: background-color 0.1s;
+      }
+      
+      .checkbox-item:hover {
+        background-color: #f4f5f7;
+      }
+      
+      .checkbox-item input[type="checkbox"] {
+        margin-right: 10px;
+        width: 16px;
+        height: 16px;
+        cursor: pointer;
+      }
+      
+      .checkbox-item label {
+        font-weight: normal;
+        margin: 0;
+        cursor: pointer;
+        width: 100%;
+        font-size: 14px;
+        color: #172b4d;
+      }
+
+      /* Submit Button */
+      .form-actions {
+        margin-top: 32px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 16px;
+      }
+      
+      #submitBtn {
+        background-color: #0052cc;
+        color: white;
+        border: none;
+        padding: 10px 24px;
+        font-size: 16px;
+        font-weight: 500;
+        border-radius: 4px;
+        cursor: pointer;
+        width: 100%;
+        max-width: 300px;
+        transition: background-color 0.2s;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      }
+      
+      #submitBtn:hover:not(:disabled) {
+        background-color: #0065ff;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+      }
+      
+      #submitBtn:disabled {
+        background-color: #ebecf0;
+        color: #a5adba;
+        cursor: not-allowed;
+        transform: none;
+        box-shadow: none;
+      }
+
+      #status {
+        text-align: center;
+        font-weight: 500;
+        min-height: 24px;
+      }
+
+    </style>
 </head>
 <body>
     <?!= include('loader'); ?>
     <div class="container">
-      <a href="<?= ScriptApp.getService().getUrl(); ?>?page=myapply" class="button">查詢申請紀錄</a>
-      <h1>新增系統變更申請</h1>
-      <p>請依序選擇要變更的資訊資產，您的姓名與申請日期將由系統自動記錄。</p>
       
-      <form id="applyForm">
-        
-        <div class="form-field"><label for="groupSelect">1. 選擇組別</label><select id="groupSelect" required> <option value="">載入中...</option> </select></div>
-        <div class="form-field"><label for="categorySelect">2. 選擇類別</label><select id="categorySelect" required disabled> <option value="">請先選擇組別</option> </select></div>
-        <div class="form-field"><label for="assetIdSelect">3. 選擇資產編號</label><select id="assetIdSelect" required disabled> <option value="">請先選擇類別</option> </select></div>
-        <div class="form-field"><label>所選資產名稱</label><div id="assetNameDisplay" class="asset-display">尚未選擇</div></div>
-        <input type="hidden" name="申請類別"><input type="hidden" name="資訊資產編號"><input type="hidden" name="資訊資產名稱"><hr>
-        <div class="form-field"><label for="categoryName">類別名稱</label><select id="categoryName" name="類別名稱" required> <option value="">載入中...</option> </select></div>
-        <div class="form-field"><label for="applyDescription">申請說明</label><select id="applyDescription" name="申請說明" required> <option value="">載入中...</option> </select></div>
-
-        <fieldset>
-          <legend>變更前評估</legend>
+      <!-- Header -->
+      <div class="page-header">
+        <div class="header-left">
+          <a href="<?= ScriptApp.getService().getUrl(); ?>" class="back-link">
+             <span>←</span> 返回首頁
+          </a>
+          <h1>新增系統變更申請</h1>
+        </div>
+        <a href="<?= ScriptApp.getService().getUrl(); ?>?page=myapply" class="back-link" style="color: #0052cc;">
+          查詢紀錄 <span>→</span>
+        </a>
+      </div>
+      
+      <p class="page-description">請依序選擇要變更的資訊資產，您的姓名與申請日期將由系統自動記錄。</p>
+      
+      <div class="form-card">
+        <form id="applyForm">
           
-          <div class="form-field">
-            <label>影響範圍</label>
-            <div class="impact-scope-filters">
-              <div class="filter-group">
-                <select id="impactFilterGroup"><option value="">所有組別</option></select>
-              </div>
-              <div class="filter-group">
-                <select id="impactFilterCategory"><option value="">所有類別</option></select>
-              </div>
-              <button type="button" id="deselectAllImpact">全部取消</button>
+          <!-- Asset Selection Section -->
+          <div class="asset-selection-grid">
+            <div class="form-field">
+              <label for="groupSelect">1. 選擇組別</label>
+              <select id="groupSelect" required> <option value="">載入中...</option> </select>
             </div>
-            <div id="impactCheckboxList" class="impact-scope-checkbox-list">
-              </div>
+            
+            <div class="form-field">
+              <label for="categorySelect">2. 選擇類別</label>
+              <select id="categorySelect" required disabled> <option value="">請先選擇組別</option> </select>
+            </div>
+            
+            <div class="form-field">
+              <label for="assetIdSelect">3. 選擇資產編號</label>
+              <select id="assetIdSelect" required disabled> <option value="">請先選擇類別</option> </select>
+            </div>
+            
+            <div class="form-field" style="grid-column: 1 / -1;">
+               <label>所選資產名稱</label>
+               <div id="assetNameDisplay" class="asset-display empty">尚未選擇</div>
+            </div>
           </div>
 
-          <div class="form-field"><label>事前測試</label><select name="變更前評估-事前測試" required> <option value="">載入中...</option> </select></div>
-          <div class="form-field"><label>備份狀態說明</label><select name="變更前評估-備份狀態說明" required> <option value="">載入中...</option> </select></div>
-          <div class="form-field"><label>風險處置方式</label><select name="變更前評估-風險處置方式" required> <option value="">載入中...</option> </select></div>
-          <div class="form-field"><label>風險處置方式說明</label><select name="變更前評估-風險處置方式說明" required> <option value="">載入中...</option> </select></div>
-          <div class="form-field"><label>變更前資訊</label><input type="text" name="變更前資訊"></div>
-          <div class="form-field"><label>變更後資訊</label><input type="text" name="變更後資訊"></div>
-        </fieldset>
+          <!-- Hidden Fields -->
+          <input type="hidden" name="申請類別">
+          <input type="hidden" name="資訊資產編號">
+          <input type="hidden" name="資訊資產名稱">
+          
+          <!-- Basic Info -->
+          <div class="form-field">
+            <label for="categoryName">類別名稱</label>
+            <select id="categoryName" name="類別名稱" required> <option value="">載入中...</option> </select>
+          </div>
+          
+          <div class="form-field">
+            <label for="applyDescription">申請說明</label>
+            <select id="applyDescription" name="申請說明" required> <option value="">載入中...</option> </select>
+          </div>
 
-        <button type="submit" id="submitBtn">提交申請</button>
-        <div id="status"></div>
-      </form>
+          <!-- Assessment Fieldset -->
+          <fieldset>
+            <legend>變更前評估</legend>
+            
+            <div class="form-field">
+              <label>影響範圍</label>
+              <div class="impact-container">
+                <div class="impact-scope-filters">
+                  <div class="filter-group">
+                    <select id="impactFilterGroup"><option value="">所有組別</option></select>
+                  </div>
+                  <div class="filter-group">
+                    <select id="impactFilterCategory"><option value="">所有類別</option></select>
+                  </div>
+                  <button type="button" id="deselectAllImpact">全部取消</button>
+                </div>
+                <div id="impactCheckboxList" class="impact-scope-checkbox-list"></div>
+              </div>
+            </div>
+
+            <div class="form-field">
+              <label>事前測試</label>
+              <select name="變更前評估-事前測試" required> <option value="">載入中...</option> </select>
+            </div>
+            
+            <div class="form-field">
+              <label>備份狀態說明</label>
+              <select name="變更前評估-備份狀態說明" required> <option value="">載入中...</option> </select>
+            </div>
+            
+            <div class="form-field">
+              <label>風險處置方式</label>
+              <select name="變更前評估-風險處置方式" required> <option value="">載入中...</option> </select>
+            </div>
+            
+            <div class="form-field">
+              <label>風險處置方式說明</label>
+              <select name="變更前評估-風險處置方式說明" required> <option value="">載入中...</option> </select>
+            </div>
+            
+            <div class="form-field">
+              <label>變更前資訊</label>
+              <input type="text" name="變更前資訊" placeholder="請輸入變更前的狀態或配置...">
+            </div>
+            
+            <div class="form-field">
+              <label>變更後資訊</label>
+              <input type="text" name="變更後資訊" placeholder="請輸入預期的變更後狀態...">
+            </div>
+          </fieldset>
+
+          <div class="form-actions">
+            <button type="submit" id="submitBtn">提交申請</button>
+            <div id="status"></div>
+          </div>
+        </form>
+      </div>
     </div>
 
   <script>
@@ -199,6 +544,7 @@
     resetSelect(categorySelect, '請選擇類別');
     resetSelect(assetIdSelect, '請先選擇類別');
     assetNameDisplay.textContent = '尚未選擇';
+    assetNameDisplay.classList.add('empty');
     categorySelect.disabled = true;
     assetIdSelect.disabled = true;
     const selectedGroup = this.value;
@@ -213,6 +559,7 @@
   categorySelect.addEventListener('change', function() {
     resetSelect(assetIdSelect, '請選擇資產編號');
     assetNameDisplay.textContent = '尚未選擇';
+    assetNameDisplay.classList.add('empty');
     assetIdSelect.disabled = true;
     const selectedGroup = groupSelect.value;
     const selectedCategory = this.value;
@@ -231,12 +578,14 @@
       const selectedAsset = allAssetData.find(row => row[COL_ASSET_ID] === selectedAssetId);
       if (selectedAsset) {
         assetNameDisplay.textContent = selectedAsset[COL_ASSET_NAME];
+        assetNameDisplay.classList.remove('empty');
         document.querySelector('input[name="申請類別"]').value = selectedAsset[COL_APPLY_TYPE];
         document.querySelector('input[name="資訊資產編號"]').value = selectedAsset[COL_ASSET_ID];
         document.querySelector('input[name="資訊資產名稱"]').value = selectedAsset[COL_ASSET_NAME];
       }
     } else {
       assetNameDisplay.textContent = '尚未選擇';
+      assetNameDisplay.classList.add('empty');
       document.querySelector('input[name="申請類別"]').value = '';
       document.querySelector('input[name="資訊資產編號"]').value = '';
       document.querySelector('input[name="資訊資產名稱"]').value = '';
@@ -253,6 +602,7 @@
     e.preventDefault();
     document.getElementById('submitBtn').disabled = true;
     document.getElementById('status').innerText = '提交中，請稍候...';
+    document.getElementById('status').style.color = '#0052cc';
     
     const formData = {};
     this.querySelectorAll('input, textarea, select').forEach(el => {
@@ -268,6 +618,7 @@
       .withSuccessHandler(function(response) {
         document.getElementById('status').innerText = response;
         if (response.includes('成功')) {
+            document.getElementById('status').style.color = '#006644';
           form.reset();
           initializeAssetSelectors(allAssetData);
           initializeDropdowns(loadedDropdownOptions);
@@ -276,16 +627,18 @@
           resetSelect(assetIdSelect, '請先選擇類別');
           assetIdSelect.disabled = true;
           assetNameDisplay.textContent = '尚未選擇';
+          assetNameDisplay.classList.add('empty');
           // 提交成功後，取消所有勾選並清除篩選
           document.querySelectorAll('#impactCheckboxList input[type="checkbox"]').forEach(cb => cb.checked = false);
           document.getElementById('impactFilterGroup').value = '';
           document.getElementById('impactFilterCategory').value = '';
           applyImpactScopeFilter();
+        } else {
+            document.getElementById('status').style.color = '#de350b';
         }
         document.getElementById('submitBtn').disabled = false;
       })
       .withFailureHandler(function(err) {
-        // 這邊的 handleError 已經包含了 hideLoader 的邏輯
         handleError(err);
         document.getElementById('submitBtn').disabled = false;
       })

@@ -3,20 +3,215 @@
 <head>
     <base target="_top">
     <?!= include('stylesheet'); ?>
+    <style>
+      /* --- Page Specific Styles for Better UI/UX --- */
+      
+      /* Reset/Override some container styles for this page if needed */
+      .container {
+        max-width: 1200px; /* Widen the container for better table view */
+      }
+
+      /* Header Section */
+      .page-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 24px;
+        padding-bottom: 16px;
+        border-bottom: 1px solid #ebecf0;
+      }
+      
+      .page-header h1 {
+        margin: 0;
+        font-size: 24px;
+        color: #172b4d;
+        font-weight: 600;
+      }
+
+      /* Primary Action Button */
+      .btn-primary {
+        background-color: #0052cc;
+        color: white;
+        padding: 8px 16px;
+        border-radius: 4px;
+        font-weight: 500;
+        text-decoration: none;
+        transition: background-color 0.2s;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+      }
+      
+      .btn-primary:hover {
+        background-color: #0065ff;
+        text-decoration: none;
+        color: white;
+      }
+
+      /* Card Container for Table */
+      .table-card {
+        background: white;
+        border-radius: 8px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.12);
+        border: 1px solid #dfe1e6;
+        overflow: hidden;
+      }
+
+      /* Responsive Table Wrapper */
+      .table-responsive {
+        overflow-x: auto;
+        width: 100%;
+        -webkit-overflow-scrolling: touch;
+      }
+
+      /* Modern Table Styles */
+      table {
+        width: 100%;
+        border-collapse: separate;
+        border-spacing: 0;
+        min-width: 800px; /* Ensure it doesn't squish too much */
+      }
+
+      th {
+        background-color: #f4f5f7;
+        color: #5e6c84;
+        font-weight: 600;
+        font-size: 13px;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        padding: 12px 16px;
+        border-bottom: 2px solid #dfe1e6;
+        border-top: none;
+        border-left: none;
+        border-right: none;
+        white-space: nowrap;
+        text-align: left;
+        position: sticky;
+        top: 0;
+        z-index: 10;
+      }
+
+      td {
+        padding: 14px 16px;
+        border-bottom: 1px solid #ebecf0;
+        color: #172b4d;
+        font-size: 14px;
+        border-left: none;
+        border-right: none;
+        vertical-align: middle;
+      }
+
+      /* Remove default border from stylesheet.html if it conflicts */
+      th, td {
+        border: none;
+        border-bottom: 1px solid #ebecf0;
+      }
+      
+      th {
+        border-bottom: 2px solid #dfe1e6;
+      }
+
+      tr:last-child td {
+        border-bottom: none;
+      }
+
+      tr:hover td {
+        background-color: #fafbfc;
+      }
+
+      /* Status Badges */
+      .status-badge {
+        display: inline-flex;
+        align-items: center;
+        padding: 4px 10px;
+        border-radius: 12px;
+        font-size: 12px;
+        font-weight: 600;
+        line-height: 1.2;
+        white-space: nowrap;
+      }
+      
+      .status-badge.approved { background-color: #e3fcef; color: #006644; } /* Green */
+      .status-badge.pending { background-color: #deebff; color: #0747a6; } /* Blue */
+      .status-badge.waiting { background-color: #fffae6; color: #bf2600; } /* Yellow/Orange -> actually Redish/Orange for attention */
+      .status-badge.rejected { background-color: #ffebe6; color: #bf2600; } /* Red */
+      .status-badge.default { background-color: #ebecf0; color: #42526e; } /* Grey */
+
+      /* Action Button in Table */
+      .table-action-btn {
+        padding: 6px 12px;
+        font-size: 13px;
+        border-radius: 4px;
+        border: 1px solid #0052cc;
+        background-color: white;
+        color: #0052cc;
+        cursor: pointer;
+        transition: all 0.2s;
+      }
+      
+      .table-action-btn:hover:not(:disabled) {
+        background-color: #ebecf0;
+      }
+      
+      .table-action-btn:disabled {
+        border-color: #ebecf0;
+        background-color: #f4f5f7;
+        color: #a5adba;
+        cursor: not-allowed;
+      }
+      
+      .table-action-btn.primary-action {
+        background-color: #0052cc;
+        color: white;
+        border: 1px solid #0052cc;
+      }
+      
+      .table-action-btn.primary-action:hover:not(:disabled) {
+        background-color: #0065ff;
+        border-color: #0065ff;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      }
+
+      /* Empty State */
+      .empty-state {
+        text-align: center;
+        padding: 48px 20px;
+        color: #6b778c;
+        display: none;
+      }
+      .empty-state-icon {
+        font-size: 48px;
+        margin-bottom: 16px;
+        color: #ebecf0;
+      }
+      
+    </style>
 </head>
 <body>
     <?!= include('loader'); ?>
 
     <div class="container">
-      <a href="<?= ScriptApp.getService().getUrl(); ?>?page=form" class="button">新增系統變更申請</a>
-      <h1 id="pageTitle">我的申請紀錄</h1>
+      <!-- Header Area -->
+      <div class="page-header">
+        <h1 id="pageTitle">我的申請紀錄</h1>
+        <a href="<?= ScriptApp.getService().getUrl(); ?>?page=form" class="btn-primary">
+          <span>+</span> 新增申請
+        </a>
+      </div>
       
-      <div id="statusMessage" style="display:none; text-align: center; padding: 20px;"></div>
+      <!-- Status Message / Empty State -->
+      <div id="statusMessage" class="empty-state"></div>
       
-      <table id="applyTable" style="display:none;">
-        <thead> <tr id="tableHeader"></tr> </thead>
-        <tbody id="tableBody"></tbody>
-      </table>
+      <!-- Table Card -->
+      <div class="table-card">
+        <div class="table-responsive">
+          <table id="applyTable" style="display:none;">
+            <thead> <tr id="tableHeader"></tr> </thead>
+            <tbody id="tableBody"></tbody>
+          </table>
+        </div>
+      </div>
     </div>
 
     <script>
@@ -26,21 +221,34 @@
         if (pageTitle) pageTitle.textContent = '全部申請紀錄';
       }
 
+      // Helper to determine status badge class
+      function getStatusBadgeClass(status) {
+        if (!status) return 'default';
+        if (status.includes('核准') && !status.includes('待')) return 'approved';
+        if (status.includes('駁回') || status.includes('拒絕')) return 'rejected';
+        if (status.includes('申請中') || status.includes('待')) return 'pending';
+        return 'default';
+      }
+
       function buildPrintButton(rowNumber, status, statusMessage) {
         const button = document.createElement('button');
+        button.className = 'table-action-btn'; // Base class
+        
         if (status !== '已核准' || !rowNumber) {
           button.textContent = '待核准';
           button.disabled = true;
-          button.style.backgroundColor = '#999';
-          button.style.cursor = 'not-allowed';
           return button;
         }
 
-        button.textContent = '生成申請單';
+        // Active state
+        button.textContent = '列印';
+        button.classList.add('primary-action');
+        
         button.addEventListener('click', function() {
           const originalText = button.textContent;
           button.disabled = true;
           button.textContent = '處理中...';
+          button.classList.remove('primary-action'); // Visually indicate loading state
           showLoader('正在產生申請單...');
 
           google.script.run
@@ -52,6 +260,7 @@
               hideLoader('產生失敗');
               button.disabled = false;
               button.textContent = originalText;
+              button.classList.add('primary-action');
               statusMessage.innerText = '產生失敗：未取得文件連結。';
               statusMessage.style.display = 'block';
             })
@@ -59,6 +268,7 @@
               hideLoader('產生失敗');
               button.disabled = false;
               button.textContent = originalText;
+              button.classList.add('primary-action');
               statusMessage.innerText = '產生失敗：' + err.message;
               statusMessage.style.display = 'block';
             })
@@ -68,25 +278,27 @@
         return button;
       }
 
-      // ✨【核心修改 2】: 全面重構 renderTable 函數以配合新的 loader
+      // ✨【核心修改 2】: 全面重構 renderTable 函數以配合新的 UI
       function renderTable(dataWithHeaders) {
-        // 無論成功與否，第一件事就是關閉載入動畫
         hideLoader('查詢完成！');
 
         const statusMessage = document.getElementById('statusMessage');
         const applyTable = document.getElementById('applyTable');
 
-        // 檢查回傳的資料是否有效 (第一行為標頭，所以長度至少要 > 1 才算有內容)
+        // 檢查回傳的資料是否有效
         if (!Array.isArray(dataWithHeaders) || dataWithHeaders.length <= 1) {
-            statusMessage.innerText = isApprover ? '查無申請紀錄。' : '查無您的申請紀錄。';
+            statusMessage.innerHTML = '<div class="empty-state-icon">📭</div>' + 
+                                      (isApprover ? '目前尚無任何申請紀錄。' : '您目前沒有申請紀錄。');
             statusMessage.style.display = 'block';
-            applyTable.style.display = 'none'; // 確保表格是隱藏的
+            applyTable.style.display = 'none';
+            // Hide the table card border if empty to look cleaner
+            document.querySelector('.table-card').style.border = 'none';
+            document.querySelector('.table-card').style.boxShadow = 'none';
             return;
         }
 
-        // 資料有效，開始建立表格
-        const headers = dataWithHeaders.shift(); // 取出並移除第一行作為標頭
-        const data = dataWithHeaders; // 剩下的就是資料
+        const headers = dataWithHeaders.shift();
+        const data = dataWithHeaders;
         const printIndex = headers.indexOf('申請單');
         const statusIndex = headers.indexOf('申請狀態');
         
@@ -107,12 +319,22 @@
           const tr = document.createElement('tr');
           row.forEach((cell, colIndex) => {
             const td = document.createElement('td');
+            
+            // 處理「申請單」按鈕欄位
             if (colIndex === printIndex && printIndex !== -1) {
               const rowNumber = Number(cell);
               const status = statusIndex !== -1 ? row[statusIndex] : '';
               td.appendChild(buildPrintButton(rowNumber, status, statusMessage));
-            } else {
-              // 處理 null 或 undefined 的情況，顯示為空白
+              td.style.textAlign = 'center'; // Center the button
+            } 
+            // 處理「申請狀態」欄位
+            else if (colIndex === statusIndex && statusIndex !== -1) {
+               const statusSpan = document.createElement('span');
+               statusSpan.textContent = cell || '未知';
+               statusSpan.className = 'status-badge ' + getStatusBadgeClass(cell);
+               td.appendChild(statusSpan);
+            }
+            else {
               td.textContent = (cell === null || cell === undefined) ? '' : cell;
             }
             tr.appendChild(td);
@@ -127,20 +349,17 @@
 
       // ✨【核心修改 3】: 修改頁面載入邏輯
       window.addEventListener('load', function() {
-        // 1. 立即顯示載入動畫
         showLoader(isApprover ? '正在查詢全部申請紀錄...' : '正在查詢您的申請紀錄...');
         
-        // 2. 執行後端腳本
         google.script.run
           .withSuccessHandler(renderTable)
           .withFailureHandler(err => {
-            // 失敗時也要關閉載入動畫，並顯示錯誤訊息
             hideLoader('查詢失敗！');
             const statusMessage = document.getElementById('statusMessage');
             statusMessage.innerText = '載入失敗：' + err.message;
             statusMessage.style.display = 'block';
           })
-          .getUserApplications(); // 注意：此函數應回傳包含標頭的二維陣列
+          .getUserApplications();
       });
     </script>
 </body>

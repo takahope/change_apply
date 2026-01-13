@@ -4,53 +4,330 @@
     <base target="_top">
     <?!= include('stylesheet'); ?>
     <style>
-      .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.5); }
-      .modal-content { background-color: #fefefe; margin: 15% auto; padding: 20px; border: 1px solid #888; width: 80%; max-width: 500px; border-radius: 8px; position: relative; }
-      .close-button { color: #aaa; float: right; font-size: 28px; font-weight: bold; position: absolute; top: 10px; right: 20px; }
-      .close-button:hover, .close-button:focus { color: black; text-decoration: none; cursor: pointer; }
-      .modal-body { white-space: pre-wrap; } /* 讓換行符號 \n 生效 */
-      .view-button { padding: 5px 10px; font-size: 14px; }
+      /* --- Page Specific Styles for Better UI/UX --- */
+      .container {
+        max-width: 1400px; /* Widen for review table which has many columns */
+      }
+
+      /* Header Section */
+      .page-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 24px;
+        padding-bottom: 16px;
+        border-bottom: 1px solid #ebecf0;
+      }
+      
+      .header-left {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+      }
+
+      .back-link {
+        color: #5e6c84;
+        font-size: 14px;
+        text-decoration: none;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+      }
+      
+      .back-link:hover {
+        color: #0052cc;
+        text-decoration: underline;
+      }
+      
+      .page-header h1 {
+        margin: 0;
+        font-size: 24px;
+        color: #172b4d;
+        font-weight: 600;
+      }
+
+      /* Buttons */
+      .btn-primary {
+        background-color: #0052cc;
+        color: white;
+        padding: 8px 16px;
+        border-radius: 4px;
+        font-weight: 500;
+        border: none;
+        cursor: pointer;
+        transition: background-color 0.2s;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+      }
+      
+      .btn-primary:hover:not(:disabled) {
+        background-color: #0065ff;
+      }
+      
+      .btn-primary:disabled {
+        background-color: #ebecf0;
+        color: #a5adba;
+        cursor: not-allowed;
+        box-shadow: none;
+      }
+      
+      .btn-danger {
+        background-color: #de350b;
+        color: white;
+        border: none;
+        padding: 6px 12px;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 13px;
+        transition: background-color 0.2s;
+      }
+      
+      .btn-danger:hover {
+        background-color: #bf2600;
+      }
+
+      .btn-secondary {
+        background-color: white;
+        color: #0052cc;
+        border: 1px solid #0052cc;
+        padding: 6px 12px;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 13px;
+        transition: all 0.2s;
+      }
+      
+      .btn-secondary:hover {
+        background-color: #ebecf0;
+      }
+
+      /* Card Container for Table */
+      .table-card {
+        background: white;
+        border-radius: 8px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.12);
+        border: 1px solid #dfe1e6;
+        overflow: hidden;
+      }
+
+      /* Responsive Table Wrapper */
+      .table-responsive {
+        overflow-x: auto;
+        width: 100%;
+        max-height: 70vh; /* Fixed height for sticky header */
+        -webkit-overflow-scrolling: touch;
+      }
+
+      /* Modern Table Styles */
+      table {
+        width: 100%;
+        border-collapse: separate;
+        border-spacing: 0;
+        min-width: 1000px;
+      }
+
+      th {
+        background-color: #f4f5f7;
+        color: #5e6c84;
+        font-weight: 600;
+        font-size: 13px;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        padding: 12px 16px;
+        border-bottom: 2px solid #dfe1e6;
+        white-space: nowrap;
+        text-align: left;
+        position: sticky;
+        top: 0;
+        z-index: 10;
+        box-shadow: 0 1px 0 #dfe1e6; /* Fix for sticky border */
+      }
+      
+      /* First column sticky (checkbox) */
+      th:first-child, td:first-child {
+        position: sticky;
+        left: 0;
+        z-index: 11;
+        background-color: inherit; /* inherit from row */
+        border-right: 1px solid #ebecf0;
+        width: 40px;
+        text-align: center;
+      }
+      th:first-child {
+        z-index: 12; /* Higher than other headers */
+        background-color: #f4f5f7;
+      }
+
+      td {
+        padding: 12px 16px;
+        border-bottom: 1px solid #ebecf0;
+        color: #172b4d;
+        font-size: 14px;
+        vertical-align: middle;
+        background-color: white;
+      }
+
+      tr:last-child td {
+        border-bottom: none;
+      }
+
+      tr:hover td {
+        background-color: #fafbfc;
+      }
+
+      /* Modal Styles */
+      .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(9, 30, 66, 0.54); backdrop-filter: blur(2px); }
+      .modal-content { 
+        background-color: #fff; 
+        margin: 10% auto; 
+        padding: 0; 
+        border: none; 
+        width: 80%; 
+        max-width: 600px; 
+        border-radius: 8px; 
+        box-shadow: 0 8px 16px -4px rgba(9, 30, 66, 0.25), 0 0 1px rgba(9, 30, 66, 0.31);
+        display: flex;
+        flex-direction: column;
+        max-height: 80vh;
+      }
+      
+      .modal-header {
+        padding: 16px 24px;
+        border-bottom: 1px solid #ebecf0;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+      
+      .modal-header h3 {
+        margin: 0;
+        font-size: 20px;
+        color: #172b4d;
+      }
+      
+      .close-button {
+        color: #5e6c84;
+        font-size: 24px;
+        font-weight: bold;
+        cursor: pointer;
+        padding: 4px;
+        line-height: 1;
+        border-radius: 4px;
+      }
+      
+      .close-button:hover {
+        background-color: #ebecf0;
+        color: #172b4d;
+      }
+      
+      .modal-body {
+        padding: 24px;
+        overflow-y: auto;
+        white-space: pre-wrap;
+        color: #172b4d;
+        line-height: 1.5;
+      }
+      
+      .modal-footer {
+        padding: 16px 24px;
+        border-top: 1px solid #ebecf0;
+        text-align: right;
+        background-color: #f4f5f7;
+        border-bottom-left-radius: 8px;
+        border-bottom-right-radius: 8px;
+      }
+
+      /* Empty State */
+      .empty-state {
+        text-align: center;
+        padding: 48px 20px;
+        color: #6b778c;
+        display: none;
+      }
+      .empty-state-icon {
+        font-size: 48px;
+        margin-bottom: 16px;
+        color: #ebecf0;
+      }
+      
+      /* Actions area above table */
+      .table-actions {
+        margin-bottom: 16px;
+        display: flex;
+        justify-content: flex-end;
+      }
+      
+      /* Checkbox style */
+      input[type="checkbox"] {
+        width: 16px;
+        height: 16px;
+        cursor: pointer;
+      }
+
     </style>
 </head>
 <body>
     <?!= include('loader'); ?>
 
     <div class="container">
-      <a href="<?= ScriptApp.getService().getUrl(); ?>">&lt; 返回首頁</a>
-      <h1>待審核案件</h1>
-      <div id="statusMessage" style="text-align: center; padding: 20px;">載入中...</div>
+      <!-- Header -->
+      <div class="page-header">
+        <div class="header-left">
+          <a href="<?= ScriptApp.getService().getUrl(); ?>" class="back-link">
+             <span>←</span> 返回首頁
+          </a>
+          <h1>待審核案件</h1>
+        </div>
+      </div>
+
+      <div id="statusMessage" class="empty-state"></div>
       
       <div id="review-area" style="display:none;">
-        <button id="approveBtn">批次核准所選項目</button>
-        <table id="reviewTable">
-          <thead> <tr id="tableHeader"></tr> </thead>
-          <tbody id="tableBody"></tbody>
-        </table>
-        <div id="status"></div>
+        <div class="table-actions">
+           <button id="approveBtn" class="btn-primary">✓ 批次核准所選項目</button>
+        </div>
+        
+        <div class="table-card">
+          <div class="table-responsive">
+            <table id="reviewTable">
+              <thead> <tr id="tableHeader"></tr> </thead>
+              <tbody id="tableBody"></tbody>
+            </table>
+          </div>
+        </div>
+        
+        <div id="status" style="margin-top: 10px; font-weight: bold; color: #0052cc;"></div>
       </div>
     </div>
 
+    <!-- Assessment Details Modal -->
     <div id="assessmentModal" class="modal">
       <div class="modal-content">
-        <span class="close-button">&times;</span>
-        <h3>變更前評估詳細資訊</h3>
-        <hr>
+        <div class="modal-header">
+          <h3>變更前評估詳細資訊</h3>
+          <span class="close-button" onclick="closeModal('assessmentModal')">&times;</span>
+        </div>
         <div id="modalBody" class="modal-body"></div>
+        <div class="modal-footer">
+          <button class="btn-secondary" onclick="closeModal('assessmentModal')">關閉</button>
+        </div>
       </div>
     </div>
 
+    <!-- Reject Modal -->
     <div id="rejectModal" class="modal">
       <div class="modal-content">
-        <span class="close-button reject-close">&times;</span>
-        <h3>填寫拒絕原因</h3>
-        <hr>
+        <div class="modal-header">
+          <h3>填寫拒絕原因</h3>
+          <span class="close-button" onclick="closeModal('rejectModal')">&times;</span>
+        </div>
         <div class="modal-body">
-          <label for="rejectReason" style="display: block; margin-bottom: 10px; font-weight: bold;">拒絕原因：</label>
-          <textarea id="rejectReason" rows="6" style="width: 100%; padding: 8px; font-size: 14px; border: 1px solid #ccc; border-radius: 4px; resize: vertical;"></textarea>
-          <div style="margin-top: 15px; text-align: right;">
-            <button id="cancelRejectBtn" style="padding: 8px 16px; margin-right: 10px; background-color: #ccc; border: none; cursor: pointer; border-radius: 4px;">取消</button>
-            <button id="confirmRejectBtn" style="padding: 8px 16px; background-color: #f44336; color: white; border: none; cursor: pointer; border-radius: 4px;">確認拒絕</button>
-          </div>
+          <label for="rejectReason" style="display: block; margin-bottom: 8px; font-weight: 600;">原因說明：</label>
+          <textarea id="rejectReason" rows="5" style="width: 100%; padding: 10px; font-size: 14px; border: 1px solid #ccc; border-radius: 4px; resize: vertical; box-sizing: border-box;"></textarea>
+          <div style="font-size: 12px; color: #6b778c; margin-top: 6px;">請詳細說明原因，此內容將發送給申請人。</div>
+        </div>
+        <div class="modal-footer">
+            <button id="cancelRejectBtn" class="btn-secondary" style="margin-right: 10px;" onclick="closeModal('rejectModal')">取消</button>
+            <button id="confirmRejectBtn" class="btn-danger">確認拒絕</button>
         </div>
       </div>
     </div>
@@ -58,7 +335,6 @@
     <script>
       window.addEventListener('load', function() { loadPendingApprovals(); });
 
-      // ✨【核心修改 3】: 更新載入函數以使用 showLoader
       function loadPendingApprovals() {
         showLoader('正在載入待審核案件...');
         document.getElementById('status').innerText = '';
@@ -68,15 +344,14 @@
           .getPendingApprovals();
       }
       
-      // ✨【核心修改 4】: 重構 renderTable 函數以配合新 loader
       function renderTable(data) {
-        hideLoader('載入完成！'); // 首先關閉載入動畫
+        hideLoader('載入完成！'); 
         
         const statusMessage = document.getElementById('statusMessage');
         const reviewArea = document.getElementById('review-area');
 
         if (!Array.isArray(data) || data.length <= 1) {
-            statusMessage.innerText = '目前沒有待審核的案件。';
+            statusMessage.innerHTML = '<div class="empty-state-icon">🎉</div>目前沒有待審核的案件。';
             statusMessage.style.display = 'block';
             reviewArea.style.display = 'none';
             return;
@@ -88,7 +363,12 @@
 
         const headers = data.shift();
         
-        headerRow.innerHTML = '<th><input type="checkbox" id="selectAll"></th>';
+        // 1. Checkbox Column Header
+        const checkTh = document.createElement('th');
+        checkTh.innerHTML = '<input type="checkbox" id="selectAll">';
+        headerRow.appendChild(checkTh);
+        
+        // 2. Data Headers (Skip raw row number)
         headers.forEach(h => {
           if (h !== '原始列號') {
             const th = document.createElement('th');
@@ -96,7 +376,8 @@
             headerRow.appendChild(th);
           }
         });
-        // Add action column header
+        
+        // 3. Action Column Header
         const actionTh = document.createElement('th');
         actionTh.textContent = '操作';
         headerRow.appendChild(actionTh);
@@ -109,17 +390,27 @@
           const rowNumber = row[rawRowIndex];
           const assessmentDetails = row[assessmentIndex];
 
-          tr.innerHTML = `<td><input type="checkbox" class="approval-checkbox" data-row-number="${rowNumber}"></td>`;
+          // Checkbox Cell
+          const checkTd = document.createElement('td');
+          checkTd.innerHTML = `<input type="checkbox" class="approval-checkbox" data-row-number="${rowNumber}">`;
+          tr.appendChild(checkTd);
 
+          // Data Cells
           row.forEach((cell, index) => {
             if (index !== rawRowIndex) {
               const td = document.createElement('td');
               if (index === assessmentIndex) {
-                const button = document.createElement('button');
-                button.textContent = '查看';
-                button.className = 'view-button';
-                button.dataset.details = assessmentDetails;
-                td.appendChild(button);
+                // If this is the "View Details" column
+                if (cell && cell !== '') {
+                  const button = document.createElement('button');
+                  button.textContent = '查看詳情';
+                  button.className = 'btn-secondary view-button';
+                  button.dataset.details = assessmentDetails;
+                  td.appendChild(button);
+                } else {
+                  td.textContent = '-';
+                  td.style.color = '#ccc';
+                }
               } else {
                 td.textContent = (cell === null || cell === undefined) ? '' : cell;
               }
@@ -127,18 +418,12 @@
             }
           });
           
-          // Add reject button column
+          // Action Cell (Reject)
           const actionTd = document.createElement('td');
           const rejectButton = document.createElement('button');
           rejectButton.textContent = '拒絕';
-          rejectButton.className = 'reject-button';
+          rejectButton.className = 'btn-danger reject-button';
           rejectButton.dataset.rowNumber = rowNumber;
-          rejectButton.style.backgroundColor = '#f44336';
-          rejectButton.style.color = 'white';
-          rejectButton.style.border = 'none';
-          rejectButton.style.padding = '5px 10px';
-          rejectButton.style.cursor = 'pointer';
-          rejectButton.style.borderRadius = '4px';
           actionTd.appendChild(rejectButton);
           tr.appendChild(actionTd);
           
@@ -148,23 +433,24 @@
         statusMessage.style.display = 'none';
         reviewArea.style.display = 'block';
 
+        // Re-attach select all listener
         document.getElementById('selectAll').addEventListener('change', function() {
             document.querySelectorAll('.approval-checkbox').forEach(checkbox => { checkbox.checked = this.checked; });
         });
       }
       
-      // ✨【核心修改 5】: 重構 handleError 函數以配合新 loader
       function handleError(error) { 
-        hideLoader('載入失敗！'); // 首先關閉載入動畫
+        hideLoader('載入失敗！');
         const statusMessage = document.getElementById('statusMessage');
         statusMessage.innerText = '載入資料時發生錯誤：' + error.message; 
         statusMessage.style.display = 'block';
         document.getElementById('review-area').style.display = 'none';
       }
 
-      // --- 下方的事件監聽邏輯維持不變 ---
+      // --- Event Listeners & Modal Logic ---
       let currentRejectRowNumber = null;
       
+      // Delegation for dynamic table elements
       document.getElementById('review-area').addEventListener('click', function(event) {
         if (event.target.classList.contains('view-button')) {
             const details = event.target.dataset.details;
@@ -178,16 +464,17 @@
             document.getElementById('rejectModal').style.display = 'block';
         }
       });
-      document.querySelector('.close-button').onclick = function() {
-        document.getElementById('assessmentModal').style.display = "none";
+
+      function closeModal(modalId) {
+         document.getElementById(modalId).style.display = "none";
       }
       
-      document.querySelector('.reject-close').onclick = function() {
-        document.getElementById('rejectModal').style.display = "none";
-      }
-      
-      document.getElementById('cancelRejectBtn').onclick = function() {
-        document.getElementById('rejectModal').style.display = "none";
+      // Close modal on outside click
+      window.onclick = function(event) {
+        const assessmentModal = document.getElementById('assessmentModal');
+        const rejectModal = document.getElementById('rejectModal');
+        if (event.target == assessmentModal) { assessmentModal.style.display = "none"; }
+        if (event.target == rejectModal) { rejectModal.style.display = "none"; }
       }
       
       document.getElementById('confirmRejectBtn').onclick = function() {
@@ -206,13 +493,6 @@
           .withFailureHandler(handleRejectError)
           .processRejection(currentRejectRowNumber, rejectReason);
       }
-      
-      window.onclick = function(event) {
-        const assessmentModal = document.getElementById('assessmentModal');
-        const rejectModal = document.getElementById('rejectModal');
-        if (event.target == assessmentModal) { assessmentModal.style.display = "none"; }
-        if (event.target == rejectModal) { rejectModal.style.display = "none"; }
-      }
 
       document.getElementById('approveBtn').addEventListener('click', function() {
         const checkedBoxes = document.querySelectorAll('.approval-checkbox:checked');
@@ -220,9 +500,16 @@
           alert('請至少選擇一個要核准的項目。');
           return;
         }
+        
+        if(!confirm(`確定要核准這 ${checkedBoxes.length} 筆申請嗎？`)) {
+            return;
+        }
+
         const rowNumbersToApprove = Array.from(checkedBoxes).map(cb => parseInt(cb.dataset.rowNumber));
         this.disabled = true;
-        document.getElementById('status').innerText = '處理中，請稍候...';
+        this.innerText = '處理中...';
+        document.getElementById('status').innerText = '正在處理核准作業，請稍候...';
+        
         google.script.run
           .withSuccessHandler(handleApprovalSuccess)
           .withFailureHandler(handleApprovalError)
@@ -231,15 +518,18 @@
       
       function handleApprovalSuccess(responseMessage) {
         alert(responseMessage);
-        document.getElementById('approveBtn').disabled = false;
-        // 重新載入時會自動顯示進度條
+        const btn = document.getElementById('approveBtn');
+        btn.disabled = false;
+        btn.innerText = '✓ 批次核准所選項目';
         loadPendingApprovals();
       }
       
       function handleApprovalError(error) {
         alert('審核操作失敗：' + error.message);
         document.getElementById('status').innerText = '審核失敗，請重試。';
-        document.getElementById('approveBtn').disabled = false;
+        const btn = document.getElementById('approveBtn');
+        btn.disabled = false;
+        btn.innerText = '✓ 批次核准所選項目';
       }
       
       function handleRejectSuccess(responseMessage) {
