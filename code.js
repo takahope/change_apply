@@ -184,7 +184,7 @@ function getUserApplications() {
       const mappedRow = desiredColumns.map(col => {
         const cellValue = row[col.index];
         if ((col.header === '申請日期' || col.header === '審核通過時間') && cellValue instanceof Date && !isNaN(cellValue)) {
-          return Utilities.formatDate(cellValue, Session.getScriptTimeZone(), "yyyy/MM/dd HH:mm");
+          return Utilities.formatDate(cellValue, Session.getScriptTimeZone(), "yyyy/MM/dd");
         }
         return cellValue;
       });
