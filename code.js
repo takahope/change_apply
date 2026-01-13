@@ -149,6 +149,7 @@ function getUserApplications() {
     
     const desiredColumns = [
       { header: '申請日期', index: 13 },     // N
+      { header: '申請人員', index: RECORDS_APPLICANT_NAME_COL - 1 }, // O
       { header: '申請類別', index: 1 },      // B
       { header: '資訊資產編號', index: 2 },  // C
       { header: '資訊資產名稱', index: 3 },   // D
