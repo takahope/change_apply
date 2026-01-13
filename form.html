@@ -427,6 +427,11 @@
             <label for="categoryName">類別名稱</label>
             <select id="categoryName" name="類別名稱" required> <option value="">載入中...</option> </select>
           </div>
+
+          <div class="form-field">
+            <label for="applyReason">申請原因</label>
+            <select id="applyReason" name="申請原因" required> <option value="">載入中...</option> </select>
+          </div>
           
           <div class="form-field">
             <label for="applyDescription">申請說明</label>
@@ -949,6 +954,16 @@
       if (!el.name || el.type === 'checkbox') return;
       formData[el.name] = el.value;
     });
+
+    const applyReason = formData['申請原因'] || '';
+    const applyDescription = formData['申請說明'] || '';
+    if (applyReason && applyDescription) {
+      formData['申請說明'] = `因${applyReason}，故進行${applyDescription}作業`;
+    } else if (applyReason) {
+      formData['申請說明'] = `因${applyReason}進行變更`;
+    } else if (applyDescription) {
+      formData['申請說明'] = `進行${applyDescription}變更`;
+    }
 
     const checkedImpactItems = document.querySelectorAll('#impactCheckboxList input[type="checkbox"]:checked');
     const selectedImpactValues = Array.from(checkedImpactItems).map(cb => cb.value);
