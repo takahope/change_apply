@@ -47,6 +47,7 @@
    - 批次審核功能
    - 詳細資訊檢視
    - 一鍵核准與郵件通知
+   - 拒絕申請並填寫原因（自動通知申請人）
 
 3. **自動化作業**
    - 單號自動生成（格式：`IS-R-032-YYMMDD-##`）
@@ -58,6 +59,7 @@
    - 個人申請歷史記錄
    - 即時狀態更新
    - 核准日期與單號追蹤
+   - 拒絕原因追蹤
 
 ### 🔐 權限管理
 
@@ -116,15 +118,15 @@
 **主要工作表：**
 - `申請紀錄` - 申請單主表
 - `權限` - 使用者權限設定
-- `資產清單` - IT 資產資料
-- `影響範圍` - 影響範圍選項
+- `下拉選單` - 表單下拉選項
+- `資訊資產` - IT 資產資料
 
 **核心欄位：**
 - 申請人資訊、時間戳記
 - 資產詳細資料
 - 變更前評估資料
 - 審核狀態、審核者、審核時間
-- 單號、文件連結
+- 單號、文件連結、拒絕原因
 
 ## 專案結構
 
@@ -190,7 +192,7 @@ change_apply/
 
 1. **建立 Google 試算表**
    - 建立新的 Google Sheets 檔案
-   - 建立以下工作表：`申請紀錄`、`權限`、`資產清單`、`影響範圍`
+   - 建立以下工作表：`申請紀錄`、`權限`、`下拉選單`、`資訊資產`
 
 2. **設定工作表結構**
    - 參照 `code.js` 中的欄位索引設定欄位
@@ -241,7 +243,7 @@ clasp deploy --description "Production v1.0"
 1. 在 Google Docs 中建立變更申請文件範本
 2. 使用 `{{變數名稱}}` 作為佔位符（如：`{{申請人}}`、`{{資產名稱}}`）
 3. 複製範本檔案 ID
-4. 更新 `code.js` 中的 `TEMPLATE_DOC_ID`
+4. 更新 `code.js` 中的 `TEMPLATE_ID` 與 `DESTINATION_FOLDER_ID`
 
 ## 使用說明
 
@@ -270,6 +272,7 @@ clasp deploy --description "Production v1.0"
 3. 確認申請狀態：
    - `申請中` - 等待審核
    - `已核准` - 審核通過（顯示單號與審核日期）
+   - `已拒絕` - 審核未通過（顯示拒絕原因）
 
 #### 3️⃣ 主管審核（限有權限者）
 
@@ -282,6 +285,10 @@ clasp deploy --description "Production v1.0"
    - 產生單號
    - 建立變更申請文件
    - 發送核准通知郵件給申請人
+7. 若需拒絕，點選「拒絕」並填寫原因，系統會：
+   - 更新狀態為 `已拒絕`
+   - 回寫拒絕原因
+   - 發送拒絕通知郵件
 
 ### API 使用（供開發者）
 
@@ -296,6 +303,9 @@ getPendingApprovals()
 
 // 批次核准
 processBatchApproval(rowIndices)
+
+// 拒絕申請
+processRejection(rowNumber, rejectReason)
 
 // 取得資產資料
 getAssetData()
@@ -328,16 +338,16 @@ sendNotificationEmail(recipientEmail, subject, body)
 
 ```javascript
 // 試算表設定
-const SHEET_NAME_RECORDS = '申請紀錄';
-const SHEET_NAME_PERMISSIONS = '權限';
-const SHEET_NAME_ASSETS = '資產清單';
-const SHEET_NAME_IMPACT = '影響範圍';
+const SHEET_RECORDS_NAME = '申請紀錄';
+const SHEET_PERMISSIONS_NAME = '權限';
+const SHEET_OPTIONS_NAME = '下拉選單';
+const SHEET_ASSETS_NAME = '資訊資產';
 
 // 文件範本 ID（需自行設定）
-const TEMPLATE_DOC_ID = 'YOUR_TEMPLATE_DOC_ID';
+const TEMPLATE_ID = 'YOUR_TEMPLATE_DOC_ID';
 
-// 文件存放路徑（需自行設定）
-const DESTINATION_FOLDER_PATH = 'YOUR_FOLDER_PATH';
+// 文件存放資料夾 ID（需自行設定）
+const DESTINATION_FOLDER_ID = 'YOUR_FOLDER_ID';
 
 // 單號格式
 const RECORD_NUMBER_PREFIX = 'IS-R-032';
@@ -420,6 +430,7 @@ git push -u origin feature/your-feature-name
 5. ✅ 文件產生正確性
 6. ✅ 郵件發送功能
 7. ✅ 批次審核流程
+8. ✅ 拒絕流程（狀態、原因回寫、拒絕通知）
 
 ## 常見問題
 
