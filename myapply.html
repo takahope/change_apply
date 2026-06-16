@@ -187,7 +187,108 @@
         margin-bottom: 16px;
         color: #ebecf0;
       }
-      
+
+      /* Cancelled status badge (需求4) */
+      .status-badge.cancelled { background-color: #ebecf0; color: #5e6c84; }
+
+      /* Row action button group (需求4+5) */
+      .row-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        justify-content: center;
+      }
+
+      .table-action-btn.subtle {
+        border-color: #dfe1e6;
+        color: #42526e;
+        background-color: white;
+      }
+      .table-action-btn.subtle:hover:not(:disabled) { background-color: #ebecf0; }
+
+      .table-action-btn.danger {
+        border-color: #de350b;
+        color: #de350b;
+        background-color: white;
+      }
+      .table-action-btn.danger:hover:not(:disabled) { background-color: #ffebe6; }
+
+      /* Detail modal (需求5) */
+      .modal-overlay {
+        display: none;
+        position: fixed;
+        inset: 0;
+        background-color: rgba(9, 30, 66, 0.54);
+        z-index: 1000;
+        justify-content: center;
+        align-items: flex-start;
+        padding: 40px 16px;
+        overflow-y: auto;
+      }
+      .modal-overlay.open { display: flex; }
+
+      .modal-card {
+        background: white;
+        border-radius: 8px;
+        box-shadow: 0 8px 24px rgba(9, 30, 66, 0.25);
+        width: 100%;
+        max-width: 640px;
+        margin: auto;
+        display: flex;
+        flex-direction: column;
+        max-height: calc(100vh - 80px);
+      }
+
+      .modal-header {
+        padding: 20px 24px;
+        border-bottom: 1px solid #ebecf0;
+        font-size: 18px;
+        font-weight: 600;
+        color: #172b4d;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+
+      .modal-close {
+        border: none;
+        background: transparent;
+        font-size: 22px;
+        line-height: 1;
+        cursor: pointer;
+        color: #5e6c84;
+        padding: 0;
+      }
+      .modal-close:hover { color: #172b4d; }
+
+      .modal-body {
+        padding: 8px 24px 20px;
+        overflow-y: auto;
+      }
+
+      .detail-row {
+        display: flex;
+        gap: 12px;
+        padding: 10px 0;
+        border-bottom: 1px solid #f4f5f7;
+        font-size: 14px;
+      }
+      .detail-row:last-child { border-bottom: none; }
+
+      .detail-label {
+        flex: 0 0 150px;
+        color: #5e6c84;
+        font-weight: 600;
+      }
+
+      .detail-value {
+        flex: 1;
+        color: #172b4d;
+        white-space: pre-wrap;
+        word-break: break-word;
+      }
+      .detail-value.reject { color: #de350b; font-weight: 600; }
+
     </style>
 </head>
 <body>
@@ -216,6 +317,19 @@
       </div>
     </div>
 
+    <!-- Detail view modal (需求5) -->
+    <div id="detailModal" class="modal-overlay">
+      <div class="modal-card">
+        <div class="modal-header">
+          <span>申請內容</span>
+          <button type="button" id="detailCloseBtn" class="modal-close" aria-label="關閉">×</button>
+        </div>
+        <div class="modal-body">
+          <div id="detailBody"></div>
+        </div>
+      </div>
+    </div>
+
     <script>
       const isApprover = "<?= isApprover ?>" === "true";
       if (isApprover) {
@@ -226,6 +340,7 @@
       // Helper to determine status badge class
       function getStatusBadgeClass(status) {
         if (!status) return 'default';
+        if (status.includes('取消')) return 'cancelled';
         if (status.includes('核准') && !status.includes('待')) return 'approved';
         if (status.includes('駁回') || status.includes('拒絕')) return 'rejected';
         if (status.includes('申請中') || status.includes('待')) return 'pending';
@@ -297,6 +412,110 @@
         return button;
       }
 
+      const WEB_APP_URL = "<?= ScriptApp.getService().getUrl(); ?>";
+      const detailModal = document.getElementById('detailModal');
+      const detailBody = document.getElementById('detailBody');
+
+      // ✨【需求5】檢視按鈕：任何狀態都可開啟唯讀詳情 Modal
+      function buildViewButton(rowNumber, statusMessage) {
+        const button = document.createElement('button');
+        button.className = 'table-action-btn subtle';
+        button.textContent = '檢視';
+        if (!rowNumber) { button.disabled = true; return button; }
+
+        button.addEventListener('click', function() {
+          button.disabled = true;
+          showLoader('正在載入申請內容...');
+          google.script.run
+            .withSuccessHandler(function(detail) {
+              hideLoader('載入完成');
+              button.disabled = false;
+              renderDetail(detail);
+              detailModal.classList.add('open');
+            })
+            .withFailureHandler(function(err) {
+              hideLoader('載入失敗');
+              button.disabled = false;
+              statusMessage.innerText = '載入失敗：' + err.message;
+              statusMessage.style.display = 'block';
+            })
+            .getApplicationDetail(rowNumber);
+        });
+        return button;
+      }
+
+      // ✨【需求4】修改按鈕：導向表單編輯模式
+      function buildModifyButton(rowNumber) {
+        const button = document.createElement('button');
+        button.className = 'table-action-btn';
+        button.textContent = '修改';
+        button.addEventListener('click', function() {
+          window.top.location.href = WEB_APP_URL + '?page=form&edit=' + rowNumber;
+        });
+        return button;
+      }
+
+      // ✨【需求4】取消按鈕：確認後將狀態改為「已取消」並通知審核人
+      function buildCancelButton(rowNumber, statusMessage) {
+        const button = document.createElement('button');
+        button.className = 'table-action-btn danger';
+        button.textContent = '取消';
+        button.addEventListener('click', function() {
+          if (!confirm('確定要取消此申請嗎？取消後將通知審核人，且無法復原。')) return;
+          button.disabled = true;
+          showLoader('正在取消申請...');
+          google.script.run
+            .withSuccessHandler(function(msg) {
+              hideLoader('已取消');
+              statusMessage.innerText = msg;
+              statusMessage.style.display = 'block';
+              loadApplications(); // 重新載入清單
+            })
+            .withFailureHandler(function(err) {
+              hideLoader('取消失敗');
+              button.disabled = false;
+              statusMessage.innerText = '取消失敗：' + err.message;
+              statusMessage.style.display = 'block';
+            })
+            .cancelApplication(rowNumber);
+        });
+        return button;
+      }
+
+      // ✨【需求5】把後端回傳的欄位陣列渲染進詳情 Modal
+      function renderDetail(detail) {
+        detailBody.innerHTML = '';
+        if (!Array.isArray(detail) || detail.length === 0) {
+          detailBody.textContent = '無資料可顯示。';
+          return;
+        }
+        detail.forEach(function(item) {
+          const row = document.createElement('div');
+          row.className = 'detail-row';
+
+          const label = document.createElement('div');
+          label.className = 'detail-label';
+          label.textContent = item.label;
+
+          const value = document.createElement('div');
+          value.className = 'detail-value';
+          if (item.label === '拒絕原因' && item.value) value.classList.add('reject');
+          value.textContent = (item.value === null || item.value === undefined || item.value === '') ? '—' : item.value;
+
+          row.appendChild(label);
+          row.appendChild(value);
+          detailBody.appendChild(row);
+        });
+      }
+
+      function closeDetailModal() {
+        detailModal.classList.remove('open');
+      }
+      document.getElementById('detailCloseBtn').addEventListener('click', closeDetailModal);
+      detailModal.addEventListener('click', function(e) {
+        if (e.target === detailModal) closeDetailModal();
+      });
+
       // ✨【核心修改 2】: 全面重構 renderTable 函數以配合新的 UI
       function renderTable(dataWithHeaders) {
         hideLoader('查詢完成！');
@@ -343,9 +562,21 @@
             if (colIndex === printIndex && printIndex !== -1) {
               const rowNumber = Number(cell);
               const status = statusIndex !== -1 ? row[statusIndex] : '';
-              td.appendChild(buildPrintButton(rowNumber, status, statusMessage));
-              td.style.textAlign = 'center'; // Center the button
-            } 
+
+              const actions = document.createElement('div');
+              actions.className = 'row-actions';
+              actions.appendChild(buildPrintButton(rowNumber, status, statusMessage));
+              actions.appendChild(buildViewButton(rowNumber, statusMessage));
+
+              // 「修改 / 取消」僅限本人（非審核者檢視）且狀態為「申請中」
+              if (!isApprover && status === '申請中' && rowNumber) {
+                actions.appendChild(buildModifyButton(rowNumber));
+                actions.appendChild(buildCancelButton(rowNumber, statusMessage));
+              }
+
+              td.appendChild(actions);
+              td.style.textAlign = 'center';
+            }
             // 處理「申請狀態」欄位
             else if (colIndex === statusIndex && statusIndex !== -1) {
                const statusSpan = document.createElement('span');
@@ -366,10 +597,10 @@
         applyTable.style.display = 'table';
       }
 
-      // ✨【核心修改 3】: 修改頁面載入邏輯
-      window.addEventListener('load', function() {
+      // ✨【核心修改 3】: 載入（並可重新載入）申請清單
+      function loadApplications() {
         showLoader(isApprover ? '正在查詢全部申請紀錄...' : '正在查詢您的申請紀錄...');
-        
+
         google.script.run
           .withSuccessHandler(renderTable)
           .withFailureHandler(err => {
@@ -379,7 +610,9 @@
             statusMessage.style.display = 'block';
           })
           .getUserApplications();
-      });
+      }
+
+      window.addEventListener('load', loadApplications);
     </script>
 </body>
 </html>

@@ -365,6 +365,209 @@
         min-height: 24px;
       }
 
+      /* Impact Scope: keyword search input */
+      .impact-scope-filters input[type="text"] {
+        flex: 1 1 160px;
+        min-width: 140px;
+        padding: 6px 10px;
+        font-size: 13px;
+        border: 1px solid #dfe1e6;
+        border-radius: 3px;
+        background-color: white;
+        box-sizing: border-box;
+      }
+
+      /* Impact Scope: selected chips area */
+      .impact-selected {
+        padding: 10px 12px;
+        background-color: #f4f5f7;
+        border-bottom: 1px solid #dfe1e6;
+      }
+
+      .impact-selected-title {
+        font-size: 12px;
+        font-weight: 600;
+        color: #5e6c84;
+        margin-bottom: 8px;
+      }
+
+      .impact-chips {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+      }
+
+      .impact-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 4px 8px 4px 10px;
+        background-color: #deebff;
+        color: #0747a6;
+        border-radius: 12px;
+        font-size: 12px;
+        font-weight: 500;
+        line-height: 1.2;
+      }
+
+      .impact-chip button {
+        border: none;
+        background: transparent;
+        color: #0747a6;
+        cursor: pointer;
+        font-size: 14px;
+        line-height: 1;
+        padding: 0;
+        display: inline-flex;
+      }
+
+      .impact-chip button:hover {
+        color: #de350b;
+      }
+
+      .impact-chips-empty {
+        font-size: 12px;
+        color: #97a0af;
+      }
+
+      /* Confirmation Modal */
+      .modal-overlay {
+        display: none;
+        position: fixed;
+        inset: 0;
+        background-color: rgba(9, 30, 66, 0.54);
+        z-index: 1000;
+        justify-content: center;
+        align-items: flex-start;
+        padding: 40px 16px;
+        overflow-y: auto;
+      }
+
+      .modal-overlay.open {
+        display: flex;
+      }
+
+      .modal-card {
+        background: white;
+        border-radius: 8px;
+        box-shadow: 0 8px 24px rgba(9, 30, 66, 0.25);
+        width: 100%;
+        max-width: 640px;
+        margin: auto;
+        display: flex;
+        flex-direction: column;
+        max-height: calc(100vh - 80px);
+      }
+
+      .modal-header {
+        padding: 20px 24px;
+        border-bottom: 1px solid #ebecf0;
+        font-size: 18px;
+        font-weight: 600;
+        color: #172b4d;
+      }
+
+      .modal-body {
+        padding: 8px 24px;
+        overflow-y: auto;
+      }
+
+      .summary-row {
+        display: flex;
+        gap: 12px;
+        padding: 10px 0;
+        border-bottom: 1px solid #f4f5f7;
+        font-size: 14px;
+      }
+
+      .summary-row:last-child {
+        border-bottom: none;
+      }
+
+      .summary-label {
+        flex: 0 0 140px;
+        color: #5e6c84;
+        font-weight: 600;
+      }
+
+      .summary-value {
+        flex: 1;
+        color: #172b4d;
+        white-space: pre-wrap;
+        word-break: break-word;
+      }
+
+      .modal-actions {
+        padding: 16px 24px;
+        border-top: 1px solid #ebecf0;
+        display: flex;
+        justify-content: flex-end;
+        gap: 12px;
+      }
+
+      .modal-btn {
+        padding: 10px 20px;
+        font-size: 14px;
+        font-weight: 500;
+        border-radius: 4px;
+        cursor: pointer;
+        transition: all 0.2s;
+      }
+
+      .modal-btn.secondary {
+        background-color: white;
+        border: 1px solid #dfe1e6;
+        color: #42526e;
+      }
+
+      .modal-btn.secondary:hover {
+        background-color: #ebecf0;
+      }
+
+      .modal-btn.primary {
+        background-color: #0052cc;
+        border: 1px solid #0052cc;
+        color: white;
+      }
+
+      .modal-btn.primary:hover:not(:disabled) {
+        background-color: #0065ff;
+      }
+
+      .modal-btn.primary:disabled {
+        background-color: #ebecf0;
+        border-color: #ebecf0;
+        color: #a5adba;
+        cursor: not-allowed;
+      }
+
+      /* Edit-mode banner */
+      .edit-mode-banner {
+        display: none;
+        padding: 12px 16px;
+        margin-bottom: 20px;
+        background-color: #fffae6;
+        border: 1px solid #ffe380;
+        border-radius: 4px;
+        color: #974f0c;
+        font-size: 14px;
+      }
+
+      .edit-mode-banner.visible {
+        display: block;
+      }
+
+      .apply-desc-hint {
+        display: none;
+        margin-top: 6px;
+        font-size: 13px;
+        color: #5e6c84;
+      }
+
+      .apply-desc-hint.visible {
+        display: block;
+      }
+
     </style>
 </head>
 <body>
@@ -387,8 +590,11 @@
       <p class="page-description">可先使用搜尋或任一選單篩選資產，選到資產後會自動帶入組別、類別與資產編號。</p>
       
       <div class="form-card">
+        <div id="editModeBanner" class="edit-mode-banner">
+          您正在<strong>修改</strong>一筆既有申請，儲存後會通知審核人重新審核。
+        </div>
         <form id="applyForm">
-          
+
           <!-- Asset Selection Section -->
           <div class="asset-selection-grid">
             <div class="form-field asset-search">
@@ -449,6 +655,7 @@
           <div class="form-field">
             <label for="applyDescription">申請說明</label>
             <select id="applyDescription" name="申請說明" required> <option value="">載入中...</option> </select>
+            <div id="applyDescHint" class="apply-desc-hint"></div>
           </div>
 
           <!-- Assessment Fieldset -->
@@ -459,6 +666,7 @@
               <label>影響範圍</label>
               <div class="impact-container">
                 <div class="impact-scope-filters">
+                  <input type="text" id="impactSearchInput" placeholder="輸入關鍵字搜尋資產名稱" autocomplete="off">
                   <div class="filter-group">
                     <select id="impactFilterGroup"><option value="">所有組別</option></select>
                   </div>
@@ -466,6 +674,12 @@
                     <select id="impactFilterCategory"><option value="">所有類別</option></select>
                   </div>
                   <button type="button" id="deselectAllImpact">全部取消</button>
+                </div>
+                <div class="impact-selected">
+                  <div class="impact-selected-title">已選擇 (<span id="impactSelectedCount">0</span>)</div>
+                  <div id="impactSelectedChips" class="impact-chips">
+                    <span class="impact-chips-empty">尚未選擇任何項目</span>
+                  </div>
                 </div>
                 <div id="impactCheckboxList" class="impact-scope-checkbox-list"></div>
               </div>
@@ -510,6 +724,20 @@
       </div>
     </div>
 
+    <!-- Submit confirmation modal -->
+    <div id="confirmModal" class="modal-overlay">
+      <div class="modal-card">
+        <div class="modal-header" id="confirmModalTitle">請確認申請內容</div>
+        <div class="modal-body">
+          <div id="confirmSummary"></div>
+        </div>
+        <div class="modal-actions">
+          <button type="button" id="confirmCancelBtn" class="modal-btn secondary">返回修改</button>
+          <button type="button" id="confirmSubmitBtn" class="modal-btn primary">確認送出</button>
+        </div>
+      </div>
+    </div>
+
   <script>
   // --- 全域變數 ---
   let allAssetData = [];
@@ -539,8 +767,35 @@
   const OTHER_REASON_VALUE = '其他';
   let searchResultsHideTimer = null;
 
+  // --- 編輯模式 (需求4) ---
+  const EDIT_ROW = "<?= editRow ?>"; // 由 doGet 注入；新增申請時為空字串
+  const isEditMode = EDIT_ROW !== '';
+  let pendingFormData = null; // 暫存待確認送出的表單資料 (需求3)
+
+  // --- 影響範圍搜尋與已選 chips 的 DOM 參考 (需求1+2) ---
+  const impactSearchInput = document.getElementById('impactSearchInput');
+  const impactSelectedChips = document.getElementById('impactSelectedChips');
+  const impactSelectedCount = document.getElementById('impactSelectedCount');
+  const impactCheckboxList = document.getElementById('impactCheckboxList');
+
+  // --- 覆核 Modal 的 DOM 參考 (需求3) ---
+  const confirmModal = document.getElementById('confirmModal');
+  const confirmSummary = document.getElementById('confirmSummary');
+  const confirmSubmitBtn = document.getElementById('confirmSubmitBtn');
+  const confirmCancelBtn = document.getElementById('confirmCancelBtn');
+
   // --- 頁面載入邏輯 ---
   window.addEventListener('load', function() {
+    // ✨【需求4】編輯模式：調整頁面標題、按鈕文字與提示橫幅
+    if (isEditMode) {
+      document.getElementById('editModeBanner').classList.add('visible');
+      document.getElementById('submitBtn').textContent = '儲存修改';
+      document.getElementById('confirmModalTitle').textContent = '請確認修改內容';
+      confirmSubmitBtn.textContent = '確認儲存';
+      const pageTitle = document.querySelector('.page-header h1');
+      if (pageTitle) pageTitle.textContent = '修改系統變更申請';
+    }
+
     showLoader('正在初始化申請表單...');
     // 這兩行非同步呼叫維持不變
     google.script.run.withSuccessHandler(initializeAssetSelectors).withFailureHandler(handleError).getAssetData();
@@ -583,6 +838,10 @@
     if (loadTasksCompleted >= TOTAL_LOAD_TASKS) {
       // 當兩個任務都完成時，隱藏載入動畫
       hideLoader('表單初始化完成！');
+      // ✨【需求4】資產與下拉皆就緒後，若為編輯模式則載入並預填既有資料
+      if (isEditMode) {
+        loadEditData();
+      }
     }
   }
   
@@ -840,6 +1099,7 @@
       itemDiv.className = 'checkbox-item';
       itemDiv.dataset.group = row[COL_GROUP] || '';
       itemDiv.dataset.category = row[COL_CATEGORY] || '';
+      itemDiv.dataset.name = assetName;
 
       const checkbox = document.createElement('input');
       checkbox.type = 'checkbox';
@@ -859,17 +1119,55 @@
   function applyImpactScopeFilter() {
     const groupFilter = document.getElementById('impactFilterGroup').value;
     const categoryFilter = document.getElementById('impactFilterCategory').value;
+    const keyword = (impactSearchInput.value || '').trim().toLowerCase();
     const allItems = document.querySelectorAll('#impactCheckboxList .checkbox-item');
 
     allItems.forEach(item => {
       const matchesGroup = !groupFilter || item.dataset.group === groupFilter;
       const matchesCategory = !categoryFilter || item.dataset.category === categoryFilter;
-      
-      if (matchesGroup && matchesCategory) {
+      const matchesKeyword = !keyword || (item.dataset.name || '').toLowerCase().includes(keyword);
+
+      if (matchesGroup && matchesCategory && matchesKeyword) {
         item.style.display = 'flex';
       } else {
         item.style.display = 'none';
       }
+    });
+  }
+
+  // ✨【需求2】將目前勾選的影響範圍項目渲染為 chips，方便使用者一眼確認
+  function renderImpactSelectedChips() {
+    const checked = Array.from(impactCheckboxList.querySelectorAll('input[type="checkbox"]:checked'));
+    impactSelectedCount.textContent = checked.length;
+    impactSelectedChips.innerHTML = '';
+
+    if (checked.length === 0) {
+      const empty = document.createElement('span');
+      empty.className = 'impact-chips-empty';
+      empty.textContent = '尚未選擇任何項目';
+      impactSelectedChips.appendChild(empty);
+      return;
+    }
+
+    checked.forEach(checkbox => {
+      const chip = document.createElement('span');
+      chip.className = 'impact-chip';
+
+      const text = document.createElement('span');
+      text.textContent = checkbox.value;
+      chip.appendChild(text);
+
+      const removeBtn = document.createElement('button');
+      removeBtn.type = 'button';
+      removeBtn.textContent = '×';
+      removeBtn.setAttribute('aria-label', `移除 ${checkbox.value}`);
+      removeBtn.addEventListener('click', function() {
+        checkbox.checked = false;
+        renderImpactSelectedChips();
+      });
+      chip.appendChild(removeBtn);
+
+      impactSelectedChips.appendChild(chip);
     });
   }
 
@@ -970,18 +1268,28 @@
 
   document.getElementById('impactFilterGroup').addEventListener('change', applyImpactScopeFilter);
   document.getElementById('impactFilterCategory').addEventListener('change', applyImpactScopeFilter);
+  impactSearchInput.addEventListener('input', applyImpactScopeFilter); // ✨【需求1】關鍵字搜尋
+  // ✨【需求2】事件委派：清單內任一 checkbox 變動即更新已選 chips
+  impactCheckboxList.addEventListener('change', function(e) {
+    if (e.target && e.target.type === 'checkbox') {
+      renderImpactSelectedChips();
+    }
+  });
   document.getElementById('deselectAllImpact').addEventListener('click', function() {
     document.querySelectorAll('#impactCheckboxList input[type="checkbox"]').forEach(cb => cb.checked = false);
+    renderImpactSelectedChips();
   });
 
-  form.addEventListener('submit', function(e) {
-    e.preventDefault();
-    document.getElementById('submitBtn').disabled = true;
-    document.getElementById('status').innerText = '提交中，請稍候...';
-    document.getElementById('status').style.color = '#0052cc';
-    
+  function setStatus(message, color) {
+    const statusDiv = document.getElementById('status');
+    statusDiv.innerText = message;
+    statusDiv.style.color = color;
+  }
+
+  // 蒐集並整理表單資料；驗證未過時回傳 null（並已設定狀態訊息）
+  function buildFormData() {
     const formData = {};
-    this.querySelectorAll('input, textarea, select').forEach(el => {
+    form.querySelectorAll('input, textarea, select').forEach(el => {
       if (!el.name || el.type === 'checkbox') return;
       formData[el.name] = el.value;
     });
@@ -990,10 +1298,8 @@
     const otherReasonInput = applyReasonOtherInput.value.trim();
     if (applyReason === OTHER_REASON_VALUE && !otherReasonInput) {
       applyReasonOtherInput.focus();
-      document.getElementById('status').innerText = '請填寫其他原因說明。';
-      document.getElementById('status').style.color = '#de350b';
-      document.getElementById('submitBtn').disabled = false;
-      return;
+      setStatus('請填寫其他原因說明。', '#de350b');
+      return null;
     }
     const finalApplyReason = applyReason === OTHER_REASON_VALUE ? otherReasonInput : applyReason;
     const applyDescription = formData['申請說明'] || '';
@@ -1009,31 +1315,177 @@
     const selectedImpactValues = Array.from(checkedImpactItems).map(cb => cb.value);
     formData['變更前評估-影響範圍'] = selectedImpactValues.join(', ');
 
-    google.script.run
+    return formData;
+  }
+
+  // ✨【需求3】送出前，把內容整理成易讀清單後開啟覆核 Modal
+  function openConfirmModal(formData) {
+    const summaryRows = [
+      ['組別', groupSelect.value],
+      ['類別', categorySelect.value],
+      ['資產編號', formData['資訊資產編號']],
+      ['資產名稱', formData['資訊資產名稱']],
+      ['類別名稱', formData['類別名稱']],
+      ['申請說明', formData['申請說明']],
+      ['影響範圍', formData['變更前評估-影響範圍']],
+      ['事前測試', formData['變更前評估-事前測試']],
+      ['備份狀態說明', formData['變更前評估-備份狀態說明']],
+      ['風險處置方式', formData['變更前評估-風險處置方式']],
+      ['風險處置方式說明', formData['變更前評估-風險處置方式說明']],
+      ['變更前資訊', formData['變更前資訊']],
+      ['變更後資訊', formData['變更後資訊']]
+    ];
+
+    confirmSummary.innerHTML = '';
+    summaryRows.forEach(([label, value]) => {
+      const row = document.createElement('div');
+      row.className = 'summary-row';
+      const labelEl = document.createElement('div');
+      labelEl.className = 'summary-label';
+      labelEl.textContent = label;
+      const valueEl = document.createElement('div');
+      valueEl.className = 'summary-value';
+      valueEl.textContent = (value === undefined || value === null || value === '') ? '—' : value;
+      row.appendChild(labelEl);
+      row.appendChild(valueEl);
+      confirmSummary.appendChild(row);
+    });
+
+    pendingFormData = formData;
+    confirmModal.classList.add('open');
+  }
+
+  function closeConfirmModal() {
+    confirmModal.classList.remove('open');
+    pendingFormData = null;
+  }
+
+  // 實際送出（新增 → submitApplication；編輯 → updateApplication）
+  function doSubmit(formData) {
+    document.getElementById('submitBtn').disabled = true;
+    confirmSubmitBtn.disabled = true;
+    setStatus(isEditMode ? '儲存中，請稍候...' : '提交中，請稍候...', '#0052cc');
+
+    const runner = google.script.run
       .withSuccessHandler(function(response) {
-        document.getElementById('status').innerText = response;
-        if (response.includes('成功')) {
-            document.getElementById('status').style.color = '#006644';
-          form.reset();
-          initializeAssetSelectors(allAssetData);
-          initializeDropdowns(loadedDropdownOptions);
-          clearAssetSelection();
-          // 提交成功後，取消所有勾選並清除篩選
-          document.querySelectorAll('#impactCheckboxList input[type="checkbox"]').forEach(cb => cb.checked = false);
-          document.getElementById('impactFilterGroup').value = '';
-          document.getElementById('impactFilterCategory').value = '';
-          applyImpactScopeFilter();
-        } else {
-            document.getElementById('status').style.color = '#de350b';
-        }
+        confirmModal.classList.remove('open');
+        confirmSubmitBtn.disabled = false;
         document.getElementById('submitBtn').disabled = false;
+        setStatus(response, response && response.includes('成功') ? '#006644' : '#de350b');
+
+        if (response && response.includes('成功')) {
+          if (isEditMode) {
+            setTimeout(function() {
+              window.top.location.href = '<?= ScriptApp.getService().getUrl(); ?>?page=myapply';
+            }, 1200);
+            return;
+          }
+          resetFormAfterSubmit();
+        }
       })
       .withFailureHandler(function(err) {
-        handleError(err);
+        confirmModal.classList.remove('open');
+        confirmSubmitBtn.disabled = false;
         document.getElementById('submitBtn').disabled = false;
-      })
-      .submitApplication(formData);
+        handleError(err);
+      });
+
+    if (isEditMode) {
+      runner.updateApplication(Number(EDIT_ROW), formData);
+    } else {
+      runner.submitApplication(formData);
+    }
+  }
+
+  function resetFormAfterSubmit() {
+    form.reset();
+    initializeAssetSelectors(allAssetData);
+    initializeDropdowns(loadedDropdownOptions);
+    clearAssetSelection();
+    document.querySelectorAll('#impactCheckboxList input[type="checkbox"]').forEach(cb => cb.checked = false);
+    document.getElementById('impactFilterGroup').value = '';
+    document.getElementById('impactFilterCategory').value = '';
+    impactSearchInput.value = '';
+    applyImpactScopeFilter();
+    renderImpactSelectedChips();
+  }
+
+  form.addEventListener('submit', function(e) {
+    e.preventDefault();
+    const formData = buildFormData();
+    if (!formData) return; // 驗證未通過
+    openConfirmModal(formData);
   });
+
+  // Modal 按鈕事件
+  confirmCancelBtn.addEventListener('click', closeConfirmModal);
+  confirmSubmitBtn.addEventListener('click', function() {
+    if (pendingFormData) doSubmit(pendingFormData);
+  });
+  confirmModal.addEventListener('click', function(e) {
+    if (e.target === confirmModal) closeConfirmModal();
+  });
+
+  // ===============================================================
+  // === 編輯模式 (需求4)：載入並預填既有申請 =======================
+  // ===============================================================
+  function loadEditData() {
+    showLoader('正在載入要修改的申請...');
+    google.script.run
+      .withSuccessHandler(applyEditData)
+      .withFailureHandler(function(err) {
+        hideLoader('載入失敗');
+        handleError(err);
+      })
+      .getApplicationForEdit(Number(EDIT_ROW));
+  }
+
+  function setSelectValue(name, value) {
+    const el = document.querySelector(`select[name="${name}"]`);
+    if (el && value !== undefined && value !== null) el.value = value;
+  }
+
+  function applyEditData(data) {
+    if (!data) { hideLoader('找不到要修改的資料'); return; }
+
+    // 資產（會帶動組別/類別/編號連動下拉）
+    if (data['資訊資產編號']) {
+      selectAssetById(data['資訊資產編號'], true);
+    }
+
+    // 類別名稱與四項變更前評估
+    setSelectValue('類別名稱', data['類別名稱']);
+    setSelectValue('變更前評估-事前測試', data['變更前評估-事前測試']);
+    setSelectValue('變更前評估-備份狀態說明', data['變更前評估-備份狀態說明']);
+    setSelectValue('變更前評估-風險處置方式', data['變更前評估-風險處置方式']);
+    setSelectValue('變更前評估-風險處置方式說明', data['變更前評估-風險處置方式說明']);
+
+    // 變更前/後資訊
+    const beforeEl = document.querySelector('input[name="變更前資訊"]');
+    const afterEl = document.querySelector('input[name="變更後資訊"]');
+    if (beforeEl) beforeEl.value = data['變更前資訊'] || '';
+    if (afterEl) afterEl.value = data['變更後資訊'] || '';
+
+    // 影響範圍：依逗號分隔的名稱勾選對應 checkbox
+    const scopeNames = (data['變更前評估-影響範圍'] || '')
+      .split(',').map(s => s.trim()).filter(Boolean);
+    if (scopeNames.length) {
+      const scopeSet = new Set(scopeNames);
+      document.querySelectorAll('#impactCheckboxList input[type="checkbox"]').forEach(cb => {
+        cb.checked = scopeSet.has(cb.value);
+      });
+    }
+    renderImpactSelectedChips();
+
+    // 申請原因/申請說明為不可逆組句，無法還原下拉，故以提示呈現原值
+    if (data['申請說明']) {
+      const hint = document.getElementById('applyDescHint');
+      hint.textContent = `原申請說明：「${data['申請說明']}」。請重新選擇申請原因與申請說明。`;
+      hint.classList.add('visible');
+    }
+
+    hideLoader('已載入待修改的申請');
+  }
 </script>
   </body>
 </html>

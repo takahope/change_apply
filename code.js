@@ -45,6 +45,7 @@ function doGet(e) {
   const template = HtmlService.createTemplateFromFile(page);
   template.currentUser = currentUser;
   template.isApprover = isCurrentUserApprover(currentUser);
+  template.editRow = e.parameter.edit || ''; // ✨ 編輯模式時帶入要修改的列號
   return template.evaluate().setTitle('系統變更申請');
 }
 
@@ -444,6 +445,174 @@ function processRejection(rowNumber, rejectReason) {
     Logger.log(`processRejection 錯誤: ${e.message} (stack: ${e.stack})`);
     return `拒絕失敗：${e.message}`;
   }
+}
+
+/**
+ * ✨【新增 - 需求4】共用驗證：確認列號有效、為本人申請、且狀態為「申請中」。
+ * 用於 cancelApplication / updateApplication / getApplicationForEdit。
+ * @returns {{statusCol:number, applicantEmail:string, applicantName:string, assetName:string}}
+ */
+function getEditableRowContext(sheet, headers, rowNumber) {
+  if (!rowNumber || rowNumber < 2) throw new Error('無效的申請列號。');
+  const statusCol = headers.indexOf('申請狀態') + 1;
+  const applicantEmailCol = headers.indexOf('申請人員帳號') + 1;
+  const applicantNameCol = headers.indexOf('申請人員') + 1;
+  const assetNameCol = headers.indexOf('資訊資產名稱') + 1;
+  if (!statusCol) throw new Error("找不到 '申請狀態' 的欄位標頭。");
+  if (!applicantEmailCol) throw new Error("找不到 '申請人員帳號' 的欄位標頭。");
+
+  const currentUser = Session.getActiveUser().getEmail();
+  const applicantEmail = sheet.getRange(rowNumber, applicantEmailCol).getValue();
+  if (applicantEmail !== currentUser) throw new Error('權限不足，只能操作自己的申請。');
+
+  const status = sheet.getRange(rowNumber, statusCol).getValue();
+  if (status !== '申請中') throw new Error('僅「申請中」的申請可修改或取消。');
+
+  return {
+    statusCol,
+    applicantEmail,
+    applicantName: applicantNameCol ? sheet.getRange(rowNumber, applicantNameCol).getValue() : '',
+    assetName: assetNameCol ? sheet.getRange(rowNumber, assetNameCol).getValue() : ''
+  };
+}
+
+/**
+ * ✨【新增 - 需求4】取消尚在「申請中」的申請，並通知審核人。
+ * @param {number} rowNumber - 申請在 Sheet 中的列號。
+ * @returns {string} 執行結果訊息。
+ */
+function cancelApplication(rowNumber) {
+  try {
+    const sheet = SS.getSheetByName(SHEET_RECORDS_NAME);
+    if (!sheet) throw new Error(`找不到工作表: '${SHEET_RECORDS_NAME}'`);
+    const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+
+    const ctx = getEditableRowContext(sheet, headers, rowNumber);
+    sheet.getRange(rowNumber, ctx.statusCol).setValue('已取消');
+
+    const approvers = getUserInfoFromPermissionsSheet().approvers;
+    if (approvers && approvers.length > 0) {
+      const subject = `[系統變更申請] 案件已取消 - ${ctx.assetName || 'N/A'}`;
+      const body = `申請人：${ctx.applicantName} (${ctx.applicantEmail})\n` +
+                   `資訊資產名稱：${ctx.assetName || 'N/A'}\n\n` +
+                   `此申請已由申請人取消，無需審核。\n\n` +
+                   `審核頁面：${ScriptApp.getService().getUrl()}?page=review`;
+      sendNotificationEmail(approvers.join(','), subject, body);
+    }
+    return '申請已成功取消，並已通知審核人。';
+  } catch (e) {
+    Logger.log(`cancelApplication 錯誤: ${e.message} (stack: ${e.stack})`);
+    throw new Error(e.message);
+  }
+}
+
+/**
+ * ✨【新增 - 需求4】更新尚在「申請中」的申請（沿用標頭對應），並通知審核人。
+ * @param {number} rowNumber - 申請在 Sheet 中的列號。
+ * @param {object} formData - 與 submitApplication 相同結構的表單資料。
+ * @returns {string} 執行結果訊息。
+ */
+function updateApplication(rowNumber, formData) {
+  try {
+    const sheet = SS.getSheetByName(SHEET_RECORDS_NAME);
+    if (!sheet) throw new Error(`找不到工作表: '${SHEET_RECORDS_NAME}'`);
+    const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+
+    const ctx = getEditableRowContext(sheet, headers, rowNumber);
+
+    // 受保護欄位不因修改而被覆寫（維持原申請人/日期，狀態續為申請中）
+    const protectedHeaders = ['申請日期', '申請人員', '申請人員帳號', '申請狀態', '年', '月', '日'];
+    headers.forEach((header, idx) => {
+      const trimmedHeader = header.trim();
+      if (protectedHeaders.indexOf(trimmedHeader) !== -1) return;
+      if (!Object.prototype.hasOwnProperty.call(formData, trimmedHeader)) return;
+      sheet.getRange(rowNumber, idx + 1).setValue(formData[trimmedHeader]);
+    });
+
+    const assetName = formData['資訊資產名稱'] || ctx.assetName || 'N/A';
+    const approvers = getUserInfoFromPermissionsSheet().approvers;
+    if (approvers && approvers.length > 0) {
+      const subject = `[系統變更申請] 案件已修改 - ${assetName}`;
+      const body = `申請人：${ctx.applicantName} (${ctx.applicantEmail})\n` +
+                   `資訊資產名稱：${assetName}\n` +
+                   `申請說明：${formData['申請說明'] || ''}\n\n` +
+                   `此申請已由申請人修改，請重新審核。\n\n` +
+                   `審核頁面：${ScriptApp.getService().getUrl()}?page=review`;
+      sendNotificationEmail(approvers.join(','), subject, body);
+    }
+    return '申請已成功修改！';
+  } catch (e) {
+    Logger.log(`updateApplication 錯誤: ${e.message} (stack: ${e.stack})`);
+    throw new Error(e.message);
+  }
+}
+
+/**
+ * ✨【新增 - 需求4】取得「申請中」案件的可預填欄位（供 form.html 編輯模式）。
+ * @param {number} rowNumber - 申請在 Sheet 中的列號。
+ * @returns {object} 以標頭名稱為鍵的欄位值。
+ */
+function getApplicationForEdit(rowNumber) {
+  const sheet = SS.getSheetByName(SHEET_RECORDS_NAME);
+  if (!sheet) throw new Error(`找不到工作表: '${SHEET_RECORDS_NAME}'`);
+  const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  getEditableRowContext(sheet, headers, rowNumber); // 驗證本人 + 申請中
+
+  const dataRow = sheet.getRange(rowNumber, 1, 1, headers.length).getValues()[0];
+  const wanted = [
+    '資訊資產編號', '類別名稱',
+    '變更前評估-事前測試', '變更前評估-備份狀態說明',
+    '變更前評估-風險處置方式', '變更前評估-風險處置方式說明',
+    '變更前評估-影響範圍', '變更前資訊', '變更後資訊', '申請說明'
+  ];
+  const result = {};
+  wanted.forEach(name => {
+    const idx = headers.indexOf(name);
+    result[name] = idx !== -1 ? dataRow[idx] : '';
+  });
+  return result;
+}
+
+/**
+ * ✨【新增 - 需求5】取得單筆申請的完整內容供唯讀檢視（任何狀態皆可）。
+ * 存取權限：本人，或當前使用者為審核者。
+ * @param {number} rowNumber - 申請在 Sheet 中的列號。
+ * @returns {Array<{label:string, value:string}>} 依序排列的欄位標籤與值。
+ */
+function getApplicationDetail(rowNumber) {
+  if (!rowNumber || rowNumber < 2) throw new Error('無效的申請列號。');
+  const sheet = SS.getSheetByName(SHEET_RECORDS_NAME);
+  if (!sheet) throw new Error(`找不到工作表: '${SHEET_RECORDS_NAME}'`);
+  const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+
+  const applicantEmailCol = headers.indexOf('申請人員帳號') + 1;
+  if (!applicantEmailCol) throw new Error("找不到 '申請人員帳號' 的欄位標頭。");
+  const currentUser = Session.getActiveUser().getEmail();
+  const applicantEmail = sheet.getRange(rowNumber, applicantEmailCol).getValue();
+  if (applicantEmail !== currentUser && !isCurrentUserApprover(currentUser)) {
+    throw new Error('權限不足，無法檢視此申請。');
+  }
+
+  const dataRow = sheet.getRange(rowNumber, 1, 1, headers.length).getValues()[0];
+  const wanted = [
+    '申請日期', '申請人員', '申請類別', '資訊資產編號', '資訊資產名稱',
+    '申請說明', '變更前評估-影響範圍', '變更前評估-事前測試',
+    '變更前評估-備份狀態說明', '變更前評估-風險處置方式', '變更前評估-風險處置方式說明',
+    '變更前資訊', '變更後資訊', '申請狀態', '權責單位主管', '審核時間',
+    '紀錄編號', '拒絕原因'
+  ];
+  const tz = Session.getScriptTimeZone();
+  const result = [];
+  wanted.forEach(name => {
+    const idx = headers.indexOf(name);
+    if (idx === -1) return; // 該欄不存在（如拒絕原因）則略過
+    let value = dataRow[idx];
+    if (value instanceof Date && !isNaN(value)) {
+      value = Utilities.formatDate(value, tz, 'yyyy/MM/dd');
+    }
+    result.push({ label: name, value: (value === null || value === undefined) ? '' : value });
+  });
+  return result;
 }
 
 function getUserInfoFromPermissionsSheet() {
