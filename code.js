@@ -42,6 +42,32 @@ function doGet(e) {
     return HtmlService.createHtmlOutputFromFile('unauthorized').setTitle('權限不足');
   }
 
+  // ✨【動態郵件】審核確認頁：僅渲染、不做任何資料寫入（避免郵件預抓取誤觸）
+  // 身分改由簽章參數驗證（不依賴 Session），相容「以擁有者執行」的部署。
+  if (page === 'action') {
+    const actionRow = Number(e.parameter.row);
+    const actionApprover = e.parameter.approver || '';
+    const actionToken = e.parameter.token || '';
+    let validLink = false;
+    try {
+      if (getUserInfoFromPermissionsSheet().approvers.indexOf(actionApprover) !== -1) {
+        verifyActionToken(actionRow, actionApprover, actionToken);
+        validLink = true;
+      }
+    } catch (err) {
+      validLink = false;
+    }
+    if (!validLink) {
+      return HtmlService.createHtmlOutputFromFile('unauthorized').setTitle('權限不足');
+    }
+    const actionTemplate = HtmlService.createTemplateFromFile('action');
+    actionTemplate.actionType = e.parameter.action || '';
+    actionTemplate.actionRow = e.parameter.row || '';
+    actionTemplate.actionApprover = actionApprover;
+    actionTemplate.actionToken = actionToken;
+    return actionTemplate.evaluate().setTitle('系統變更申請 - 審核');
+  }
+
   const template = HtmlService.createTemplateFromFile(page);
   template.currentUser = currentUser;
   template.isApprover = isCurrentUserApprover(currentUser);
@@ -112,14 +138,11 @@ function submitApplication(formData) {
     
     const approvers = userInfo.approvers;
     if (approvers && approvers.length > 0) {
-      const subject = `[系統變更申請] 新案件待審核 - ${formData['資訊資產名稱'] || 'N/A'}`;
-      const body = `申請人：${applicantName} (${currentUserEmail})\n` +
-                   `資訊資產名稱：${formData['資訊資產名稱'] || 'N/A'}\n` +
-                   `申請說明：${formData['申請說明'] || ''}\n\n` +
-                   `請至審核頁面進行審核：${ScriptApp.getService().getUrl()}?page=review`;
-      
-      // 正確呼叫您既有的 sendNotificationEmail 函式
-      sendNotificationEmail(approvers.join(','), subject, body);
+      // ✨【動態郵件】每位審核人各寄一封含專屬簽章連結的可操作郵件
+      approvers.forEach(approverEmail => {
+        const mail = buildApprovalEmail(nextRow, false, approverEmail);
+        sendNotificationEmail(approverEmail, mail.subject, mail.plainBody, mail.htmlBody);
+      });
     }
 
     return '申請已成功提交！';
@@ -354,11 +377,12 @@ function getFormDropdownOptions() {
  * @param {Array<number>} rowNumbers - 要核准的申請在 Sheet 中的列號陣列。
  * @returns {string} 執行結果。
  */
-function processBatchApproval(rowNumbers) {
+function processBatchApproval(rowNumbers, approverEmailOverride) {
   try {
     const sheet = SS.getSheetByName(SHEET_RECORDS_NAME);
     const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
-    const approverEmail = Session.getActiveUser().getEmail();
+    // 郵件流程會傳入經簽章驗證的審核人；站內審核則沿用 Session
+    const approverEmail = approverEmailOverride || Session.getActiveUser().getEmail();
     const userInfo = getUserInfoFromPermissionsSheet();
     const approverName = userInfo.approversMap[approverEmail] || '未知審核者';
     const statusCol = headers.indexOf('申請狀態') + 1;
@@ -401,13 +425,14 @@ function processBatchApproval(rowNumbers) {
  * @param {string} rejectReason - 拒絕原因。
  * @returns {string} 執行結果。
  */
-function processRejection(rowNumber, rejectReason) {
+function processRejection(rowNumber, rejectReason, approverEmailOverride) {
   try {
     const sheet = SS.getSheetByName(SHEET_RECORDS_NAME);
     if (!sheet) throw new Error(`找不到工作表: '${SHEET_RECORDS_NAME}'`);
-    
+
     const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
-    const approverEmail = Session.getActiveUser().getEmail();
+    // 郵件流程會傳入經簽章驗證的審核人；站內審核則沿用 Session
+    const approverEmail = approverEmailOverride || Session.getActiveUser().getEmail();
     const userInfo = getUserInfoFromPermissionsSheet();
     const approverName = userInfo.approversMap[approverEmail] || '未知審核者';
     
@@ -529,16 +554,13 @@ function updateApplication(rowNumber, formData) {
       sheet.getRange(rowNumber, idx + 1).setValue(formData[trimmedHeader]);
     });
 
-    const assetName = formData['資訊資產名稱'] || ctx.assetName || 'N/A';
     const approvers = getUserInfoFromPermissionsSheet().approvers;
     if (approvers && approvers.length > 0) {
-      const subject = `[系統變更申請] 案件已修改 - ${assetName}`;
-      const body = `申請人：${ctx.applicantName} (${ctx.applicantEmail})\n` +
-                   `資訊資產名稱：${assetName}\n` +
-                   `申請說明：${formData['申請說明'] || ''}\n\n` +
-                   `此申請已由申請人修改，請重新審核。\n\n` +
-                   `審核頁面：${ScriptApp.getService().getUrl()}?page=review`;
-      sendNotificationEmail(approvers.join(','), subject, body);
+      // ✨【動態郵件】修改後每位審核人各重寄一封含專屬簽章連結的可操作郵件
+      approvers.forEach(approverEmail => {
+        const mail = buildApprovalEmail(rowNumber, true, approverEmail);
+        sendNotificationEmail(approverEmail, mail.subject, mail.plainBody, mail.htmlBody);
+      });
     }
     return '申請已成功修改！';
   } catch (e) {
@@ -594,6 +616,17 @@ function getApplicationDetail(rowNumber) {
   }
 
   const dataRow = sheet.getRange(rowNumber, 1, 1, headers.length).getValues()[0];
+  return buildDetailRows(headers, dataRow);
+}
+
+/**
+ * ✨【共用】依固定欄位順序，把一列資料整理成 [{label, value}]（日期格式化）。
+ * 供 getApplicationDetail（站內檢視 Modal）與可操作郵件明細共用，確保兩處內容一致。
+ * @param {Array<string>} headers - 工作表標頭列。
+ * @param {Array<any>} dataRow - 單列資料。
+ * @returns {Array<{label:string, value:string}>}
+ */
+function buildDetailRows(headers, dataRow) {
   const wanted = [
     '申請日期', '申請人員', '申請類別', '資訊資產編號', '資訊資產名稱',
     '申請說明', '變更前評估-影響範圍', '變更前評估-事前測試',
@@ -613,6 +646,204 @@ function getApplicationDetail(rowNumber) {
     result.push({ label: name, value: (value === null || value === undefined) ? '' : value });
   });
   return result;
+}
+
+// ===============================================================
+// === 動態（可操作）審核郵件 — Token 工具 ========================
+// ===============================================================
+
+/**
+ * 取得（或首次建立）動態郵件用的 HMAC 密鑰，存於 Script Properties。
+ * @returns {string}
+ */
+function getActionSecret() {
+  const props = PropertiesService.getScriptProperties();
+  let secret = props.getProperty('ACTION_SECRET');
+  if (!secret) {
+    secret = Utilities.getUuid();
+    props.setProperty('ACTION_SECRET', secret);
+  }
+  return secret;
+}
+
+/**
+ * 產生綁定「列號 + 審核人信箱」的審核 token。
+ * 身分由此簽章證明（而非 Session），故相容「以擁有者執行」的部署。
+ * @param {number} rowNumber
+ * @param {string} approverEmail - 此連結所屬的審核人
+ * @returns {string} web-safe base64 的 HMAC-SHA256
+ */
+function generateActionToken(rowNumber, approverEmail) {
+  const raw = `${rowNumber}|${approverEmail}`;
+  const signature = Utilities.computeHmacSha256Signature(raw, getActionSecret());
+  return Utilities.base64EncodeWebSafe(signature);
+}
+
+/**
+ * 驗證審核 token；不符則丟錯。
+ * @param {number} rowNumber
+ * @param {string} approverEmail
+ * @param {string} token
+ */
+function verifyActionToken(rowNumber, approverEmail, token) {
+  if (!token || token !== generateActionToken(rowNumber, approverEmail)) {
+    throw new Error('連結無效或已失效，請改用審核頁面操作。');
+  }
+}
+
+/**
+ * 共用驗證：approver 為合法審核人 + token 正確（不依賴 Session）。
+ * @returns {{sheet:Sheet, headers:Array<string>, status:string}}
+ */
+function validateEmailAction(rowNumber, approverEmail, token) {
+  if (!rowNumber || rowNumber < 2) throw new Error('無效的申請列號。');
+  if (!approverEmail || getUserInfoFromPermissionsSheet().approvers.indexOf(approverEmail) === -1) {
+    throw new Error('權限不足，只有審核人可以進行審核。');
+  }
+  verifyActionToken(rowNumber, approverEmail, token);
+
+  const sheet = SS.getSheetByName(SHEET_RECORDS_NAME);
+  if (!sheet) throw new Error(`找不到工作表: '${SHEET_RECORDS_NAME}'`);
+  const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  const statusCol = headers.indexOf('申請狀態') + 1;
+  if (!statusCol) throw new Error("找不到 '申請狀態' 的欄位標頭。");
+  const status = sheet.getRange(rowNumber, statusCol).getValue();
+  return { sheet, headers, status };
+}
+
+/**
+ * ✨【動態郵件】供 action.html 載入：回傳申請明細與目前狀態（不寫入任何資料）。
+ * @param {number} rowNumber
+ * @param {string} token
+ * @returns {{status:string, assetName:string, detail:Array, processed:boolean}}
+ */
+function getActionContext(rowNumber, approverEmail, token) {
+  rowNumber = Number(rowNumber);
+  const { sheet, headers, status } = validateEmailAction(rowNumber, approverEmail, token);
+  const dataRow = sheet.getRange(rowNumber, 1, 1, headers.length).getValues()[0];
+  const assetNameIdx = headers.indexOf('資訊資產名稱');
+  return {
+    status: status,
+    assetName: assetNameIdx !== -1 ? dataRow[assetNameIdx] : '',
+    detail: buildDetailRows(headers, dataRow),
+    processed: status !== '申請中'
+  };
+}
+
+/**
+ * ✨【動態郵件】由確認頁觸發的核准：驗證後重用既有 processBatchApproval。
+ * @param {number} rowNumber
+ * @param {string} token
+ * @returns {string} 執行結果訊息。
+ */
+function processEmailApproval(rowNumber, approverEmail, token) {
+  rowNumber = Number(rowNumber);
+  const { status } = validateEmailAction(rowNumber, approverEmail, token);
+  if (status !== '申請中') throw new Error(`此申請已處理（目前狀態：${status}），無法重複審核。`);
+  const result = processBatchApproval([rowNumber], approverEmail);
+  if (String(result).indexOf('成功') === -1) throw new Error(result);
+  return result;
+}
+
+/**
+ * ✨【動態郵件】由確認頁觸發的拒絕：驗證 + 必填原因後重用既有 processRejection。
+ * @param {number} rowNumber
+ * @param {string} token
+ * @param {string} reason
+ * @returns {string} 執行結果訊息。
+ */
+function processEmailRejection(rowNumber, approverEmail, token, reason) {
+  rowNumber = Number(rowNumber);
+  const { status } = validateEmailAction(rowNumber, approverEmail, token);
+  if (status !== '申請中') throw new Error(`此申請已處理（目前狀態：${status}），無法重複審核。`);
+  if (!reason || !String(reason).trim()) throw new Error('請填寫拒絕原因。');
+  const result = processRejection(rowNumber, String(reason).trim(), approverEmail);
+  if (String(result).indexOf('成功') === -1) throw new Error(result);
+  return result;
+}
+
+/**
+ * HTML 跳脫，避免明細內容破壞郵件版型或注入標籤。
+ */
+function escapeHtml(value) {
+  return String(value === null || value === undefined ? '' : value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+/**
+ * ✨【動態郵件】建構寄給審核人的可操作郵件（明細表 + 核准/拒絕按鈕）。
+ * @param {number} rowNumber - 申請所在列號。
+ * @param {boolean} isModified - 是否為「修改後重寄」。
+ * @returns {{subject:string, htmlBody:string, plainBody:string}}
+ */
+function buildApprovalEmail(rowNumber, isModified, approverEmail) {
+  const sheet = SS.getSheetByName(SHEET_RECORDS_NAME);
+  const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  const dataRow = sheet.getRange(rowNumber, 1, 1, headers.length).getValues()[0];
+  const detail = buildDetailRows(headers, dataRow);
+
+  const idx = name => headers.indexOf(name);
+  const assetName = idx('資訊資產名稱') !== -1 ? dataRow[idx('資訊資產名稱')] : 'N/A';
+  const applicantName = idx('申請人員') !== -1 ? dataRow[idx('申請人員')] : '';
+  const applicantEmail = idx('申請人員帳號') !== -1 ? dataRow[idx('申請人員帳號')] : '';
+
+  const url = ScriptApp.getService().getUrl();
+  // 每位審核人專屬簽章連結：身分由 token 證明，相容「以擁有者執行」
+  const token = generateActionToken(rowNumber, approverEmail);
+  const linkBase = `${url}?page=action&row=${rowNumber}&approver=${encodeURIComponent(approverEmail)}&token=${encodeURIComponent(token)}`;
+  const approveUrl = `${linkBase}&action=approve`;
+  const rejectUrl = `${linkBase}&action=reject`;
+  const reviewUrl = `${url}?page=review`;
+
+  const heading = isModified ? '案件已修改，待重新審核' : '新系統變更申請待審核';
+  const subject = isModified
+    ? `[系統變更申請] 案件已修改待審核 - ${assetName}`
+    : `[系統變更申請] 新案件待審核 - ${assetName}`;
+
+  const rowsHtml = detail.map(item => {
+    const label = escapeHtml(item.label);
+    const value = escapeHtml(item.value === '' ? '—' : item.value).replace(/\n/g, '<br>');
+    return `<tr>` +
+      `<td style="padding:8px 12px;border:1px solid #ebecf0;background:#f4f5f7;color:#5e6c84;font-weight:bold;white-space:nowrap;vertical-align:top;">${label}</td>` +
+      `<td style="padding:8px 12px;border:1px solid #ebecf0;color:#172b4d;">${value}</td>` +
+      `</tr>`;
+  }).join('');
+
+  const htmlBody =
+    `<div style="background:#f4f5f7;padding:24px 0;font-family:Arial,'Microsoft JhengHei',sans-serif;">` +
+      `<table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td align="center">` +
+        `<table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background:#ffffff;border-radius:8px;overflow:hidden;border:1px solid #dfe1e6;">` +
+          `<tr><td style="background:#0052cc;padding:20px 24px;color:#ffffff;font-size:18px;font-weight:bold;">${escapeHtml(heading)}</td></tr>` +
+          `<tr><td style="padding:20px 24px;color:#172b4d;font-size:14px;">` +
+            `<p style="margin:0 0 16px;">申請人：<strong>${escapeHtml(applicantName)}</strong>（${escapeHtml(applicantEmail)}）<br>資訊資產名稱：<strong>${escapeHtml(assetName)}</strong></p>` +
+            `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;font-size:13px;">${rowsHtml}</table>` +
+          `</td></tr>` +
+          `<tr><td align="center" style="padding:8px 24px 24px;">` +
+            `<table role="presentation" cellpadding="0" cellspacing="0"><tr>` +
+              `<td style="padding:6px;"><a href="${approveUrl}" style="display:inline-block;background:#36b37e;color:#ffffff;text-decoration:none;padding:12px 28px;border-radius:6px;font-size:15px;font-weight:bold;">✓ 核准</a></td>` +
+              `<td style="padding:6px;"><a href="${rejectUrl}" style="display:inline-block;background:#de350b;color:#ffffff;text-decoration:none;padding:12px 28px;border-radius:6px;font-size:15px;font-weight:bold;">✕ 拒絕</a></td>` +
+            `</tr></table>` +
+            `<p style="margin:16px 0 0;color:#5e6c84;font-size:12px;">點擊按鈕會開啟確認頁，再次確認後才會正式送出審核結果。</p>` +
+            `<p style="margin:8px 0 0;font-size:12px;"><a href="${reviewUrl}" style="color:#0052cc;">或前往審核頁面查看所有待審案件 →</a></p>` +
+          `</td></tr>` +
+        `</table>` +
+      `</td></tr></table>` +
+    `</div>`;
+
+  const plainBody =
+    `${heading}\n\n` +
+    `申請人：${applicantName} (${applicantEmail})\n` +
+    `資訊資產名稱：${assetName}\n\n` +
+    detail.map(it => `${it.label}：${it.value || '—'}`).join('\n') + '\n\n' +
+    `核准：${approveUrl}\n拒絕：${rejectUrl}\n\n` +
+    `（點擊後會開啟確認頁，再次確認才會送出）\n` +
+    `前往審核頁面：${reviewUrl}`;
+
+  return { subject, htmlBody, plainBody };
 }
 
 function getUserInfoFromPermissionsSheet() {
@@ -636,7 +867,14 @@ function getUserInfoFromPermissionsSheet() {
 
 function isCurrentUserApprover(email) { return getUserInfoFromPermissionsSheet().approvers.includes(email); }
 function getApproverEmails() { return getUserInfoFromPermissionsSheet().approvers; }
-function sendNotificationEmail(recipient, subject, body) { if (recipient) GmailApp.sendEmail(recipient, subject, body); }
+function sendNotificationEmail(recipient, subject, body, htmlBody) {
+  if (!recipient) return;
+  if (htmlBody) {
+    GmailApp.sendEmail(recipient, subject, body, { htmlBody: htmlBody });
+  } else {
+    GmailApp.sendEmail(recipient, subject, body);
+  }
+}
 
 function generateAndSetRecordNumber(sheet, currentRow, headers, approvalDate) {
   const recordNumColIndex = headers.indexOf('紀錄編號') + 1;

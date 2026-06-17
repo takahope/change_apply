@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <base target="_top">
+    <?!= include('stylesheet'); ?>
+    <style>
+      .container {
+        max-width: 720px;
+        margin: 0 auto;
+      }
+
+      .page-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 24px;
+        padding-bottom: 16px;
+        border-bottom: 1px solid #ebecf0;
+      }
+
+      .page-header h1 {
+        margin: 0;
+        font-size: 24px;
+        color: #172b4d;
+        font-weight: 600;
+      }
+
+      .back-link {
+        color: #0052cc;
+        font-size: 14px;
+        text-decoration: none;
+      }
+      .back-link:hover { text-decoration: underline; }
+
+      .card {
+        background: white;
+        border: 1px solid #dfe1e6;
+        border-radius: 8px;
+        padding: 28px 32px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.12);
+      }
+
+      .asset-line {
+        font-size: 15px;
+        color: #172b4d;
+        margin: 0 0 20px;
+      }
+      .asset-line strong { color: #0052cc; }
+
+      .detail-row {
+        display: flex;
+        gap: 12px;
+        padding: 10px 0;
+        border-bottom: 1px solid #f4f5f7;
+        font-size: 14px;
+      }
+      .detail-row:last-child { border-bottom: none; }
+      .detail-label {
+        flex: 0 0 150px;
+        color: #5e6c84;
+        font-weight: 600;
+      }
+      .detail-value {
+        flex: 1;
+        color: #172b4d;
+        white-space: pre-wrap;
+        word-break: break-word;
+      }
+      .detail-value.reject { color: #de350b; font-weight: 600; }
+
+      .action-area {
+        margin-top: 24px;
+        padding-top: 20px;
+        border-top: 1px solid #ebecf0;
+      }
+
+      .action-title {
+        font-size: 16px;
+        font-weight: 600;
+        margin: 0 0 14px;
+      }
+      .action-title.approve { color: #006644; }
+      .action-title.reject { color: #bf2600; }
+
+      textarea#rejectReason {
+        width: 100%;
+        min-height: 90px;
+        padding: 10px 12px;
+        border: 1px solid #dfe1e6;
+        border-radius: 4px;
+        background-color: #fafbfc;
+        font-size: 14px;
+        color: #172b4d;
+        box-sizing: border-box;
+        resize: vertical;
+        margin-bottom: 14px;
+      }
+      textarea#rejectReason:focus {
+        background-color: white;
+        border-color: #4c9aff;
+        outline: none;
+        box-shadow: 0 0 0 2px rgba(76,154,255,0.2);
+      }
+
+      .action-btn {
+        display: inline-block;
+        padding: 12px 28px;
+        font-size: 15px;
+        font-weight: 600;
+        border: none;
+        border-radius: 6px;
+        cursor: pointer;
+        color: white;
+        transition: opacity 0.2s;
+      }
+      .action-btn:hover:not(:disabled) { opacity: 0.9; }
+      .action-btn:disabled { background-color: #ebecf0 !important; color: #a5adba; cursor: not-allowed; }
+      .action-btn.approve { background-color: #36b37e; }
+      .action-btn.reject { background-color: #de350b; }
+
+      .notice {
+        margin-top: 24px;
+        padding: 16px;
+        border-radius: 6px;
+        font-size: 15px;
+        line-height: 1.5;
+      }
+      .notice.info { background-color: #deebff; color: #0747a6; }
+      .notice.success { background-color: #e3fcef; color: #006644; }
+      .notice.error { background-color: #ffebe6; color: #bf2600; }
+
+      .hidden { display: none; }
+    </style>
+</head>
+<body>
+    <?!= include('loader'); ?>
+
+    <div class="container">
+      <div class="page-header">
+        <h1>系統變更申請 — 審核</h1>
+        <a href="<?= ScriptApp.getService().getUrl(); ?>?page=review" class="back-link">前往審核頁面 →</a>
+      </div>
+
+      <div class="card">
+        <p id="assetLine" class="asset-line hidden"></p>
+        <div id="detailBody"></div>
+
+        <!-- 已處理提示 -->
+        <div id="processedNotice" class="notice info hidden"></div>
+
+        <!-- 核准確認 -->
+        <div id="approveArea" class="action-area hidden">
+          <p class="action-title approve">確認核准此申請？</p>
+          <button type="button" id="approveBtn" class="action-btn approve">確認核准</button>
+        </div>
+
+        <!-- 拒絕確認 -->
+        <div id="rejectArea" class="action-area hidden">
+          <p class="action-title reject">拒絕此申請</p>
+          <textarea id="rejectReason" placeholder="請填寫拒絕原因（必填）"></textarea>
+          <div>
+            <button type="button" id="rejectBtn" class="action-btn reject">確認拒絕</button>
+          </div>
+        </div>
+
+        <!-- 結果 / 錯誤 -->
+        <div id="resultNotice" class="notice success hidden"></div>
+        <div id="errorNotice" class="notice error hidden"></div>
+      </div>
+    </div>
+
+    <script>
+      const ACTION_TYPE = "<?= actionType ?>";
+      const ACTION_ROW = "<?= actionRow ?>";
+      const ACTION_APPROVER = "<?= actionApprover ?>";
+      const ACTION_TOKEN = "<?= actionToken ?>";
+
+      const el = id => document.getElementById(id);
+
+      function show(id) { el(id).classList.remove('hidden'); }
+      function hide(id) { el(id).classList.add('hidden'); }
+
+      function renderDetail(detail) {
+        const body = el('detailBody');
+        body.innerHTML = '';
+        (detail || []).forEach(function(item) {
+          const row = document.createElement('div');
+          row.className = 'detail-row';
+
+          const label = document.createElement('div');
+          label.className = 'detail-label';
+          label.textContent = item.label;
+
+          const value = document.createElement('div');
+          value.className = 'detail-value';
+          if (item.label === '拒絕原因' && item.value) value.classList.add('reject');
+          value.textContent = (item.value === null || item.value === undefined || item.value === '') ? '—' : item.value;
+
+          row.appendChild(label);
+          row.appendChild(value);
+          body.appendChild(row);
+        });
+      }
+
+      function showError(message) {
+        el('errorNotice').textContent = message;
+        show('errorNotice');
+      }
+
+      // 顯示最終結果，並收起操作區
+      function showResult(message) {
+        hide('approveArea');
+        hide('rejectArea');
+        el('resultNotice').textContent = message;
+        show('resultNotice');
+      }
+
+      // 載入申請內容（不會改動資料）
+      window.addEventListener('load', function() {
+        showLoader('正在載入申請內容...');
+        google.script.run
+          .withSuccessHandler(function(ctx) {
+            hideLoader('載入完成');
+            renderDetail(ctx.detail);
+            if (ctx.assetName) {
+              const line = el('assetLine');
+              line.textContent = '資訊資產名稱：';
+              const strong = document.createElement('strong');
+              strong.textContent = ctx.assetName;
+              line.appendChild(strong);
+              show('assetLine');
+            }
+
+            if (ctx.processed) {
+              el('processedNotice').textContent = '此申請已處理（目前狀態：' + ctx.status + '），無法重複審核。';
+              show('processedNotice');
+              return;
+            }
+
+            if (ACTION_TYPE === 'approve') {
+              show('approveArea');
+            } else if (ACTION_TYPE === 'reject') {
+              show('rejectArea');
+            }
+          })
+          .withFailureHandler(function(err) {
+            hideLoader('載入失敗');
+            showError('載入失敗：' + err.message);
+          })
+          .getActionContext(Number(ACTION_ROW), ACTION_APPROVER, ACTION_TOKEN);
+      });
+
+      // 確認核准
+      el('approveBtn').addEventListener('click', function() {
+        el('approveBtn').disabled = true;
+        showLoader('正在送出核准...');
+        google.script.run
+          .withSuccessHandler(function(msg) {
+            hideLoader('完成');
+            showResult(msg);
+          })
+          .withFailureHandler(function(err) {
+            hideLoader('失敗');
+            el('approveBtn').disabled = false;
+            showError('核准失敗：' + err.message);
+          })
+          .processEmailApproval(Number(ACTION_ROW), ACTION_APPROVER, ACTION_TOKEN);
+      });
+
+      // 確認拒絕
+      el('rejectBtn').addEventListener('click', function() {
+        const reason = el('rejectReason').value.trim();
+        if (!reason) {
+          el('rejectReason').focus();
+          showError('請填寫拒絕原因。');
+          return;
+        }
+        hide('errorNotice');
+        el('rejectBtn').disabled = true;
+        showLoader('正在送出拒絕...');
+        google.script.run
+          .withSuccessHandler(function(msg) {
+            hideLoader('完成');
+            showResult(msg);
+          })
+          .withFailureHandler(function(err) {
+            hideLoader('失敗');
+            el('rejectBtn').disabled = false;
+            showError('拒絕失敗：' + err.message);
+          })
+          .processEmailRejection(Number(ACTION_ROW), ACTION_APPROVER, ACTION_TOKEN, reason);
+      });
+    </script>
+</body>
+</html>
