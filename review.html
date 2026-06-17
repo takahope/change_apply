@@ -265,6 +265,30 @@
         cursor: pointer;
       }
 
+      /* Email one-click toggle */
+      .email-mode-toggle {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+        gap: 4px;
+      }
+      .email-mode-toggle label {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 14px;
+        color: #172b4d;
+        cursor: pointer;
+        font-weight: 500;
+      }
+      .email-mode-toggle .toggle-hint {
+        font-size: 12px;
+        color: #6b778c;
+        max-width: 360px;
+        text-align: right;
+      }
+      .email-mode-toggle .toggle-hint.warn { color: #bf2600; }
+
     </style>
 </head>
 <body>
@@ -278,6 +302,12 @@
              <span>←</span> 返回首頁
           </a>
           <h1>待審核案件</h1>
+        </div>
+        <div class="email-mode-toggle">
+          <label>
+            <input type="checkbox" id="oneClickToggle"> 信件一鍵審核（關閉兩段式防誤觸）
+          </label>
+          <div id="toggleHint" class="toggle-hint"></div>
         </div>
       </div>
 
@@ -335,7 +365,53 @@
     </div>
 
     <script>
-      window.addEventListener('load', function() { loadPendingApprovals(); });
+      window.addEventListener('load', function() { loadPendingApprovals(); loadOneClickSetting(); });
+
+      // --- 信件一鍵審核開關 ---
+      function loadOneClickSetting() {
+        google.script.run
+          .withSuccessHandler(function(enabled) {
+            document.getElementById('oneClickToggle').checked = !!enabled;
+            updateToggleHint(!!enabled);
+          })
+          .withFailureHandler(function(err) {
+            document.getElementById('toggleHint').textContent = '無法讀取設定：' + err.message;
+          })
+          .getEmailOneClick();
+      }
+
+      function updateToggleHint(enabled) {
+        const hint = document.getElementById('toggleHint');
+        if (enabled) {
+          hint.textContent = '⚠ 已開啟一鍵：信中點核准會直接生效，可能被郵件預載/掃描誤觸。';
+          hint.classList.add('warn');
+        } else {
+          hint.textContent = '目前為兩段式：信中點核准會先開確認頁，較安全。';
+          hint.classList.remove('warn');
+        }
+      }
+
+      document.getElementById('oneClickToggle').addEventListener('change', function() {
+        const enabled = this.checked;
+        const self = this;
+        if (enabled && !confirm('關閉兩段式防誤觸後，信件防毒/預載對核准連結發出 GET 時，可能直接觸發核准。\n\n確定要開啟「信件一鍵審核」嗎？')) {
+          self.checked = false;
+          return;
+        }
+        self.disabled = true;
+        google.script.run
+          .withSuccessHandler(function(state) {
+            self.disabled = false;
+            self.checked = !!state;
+            updateToggleHint(!!state);
+          })
+          .withFailureHandler(function(err) {
+            self.disabled = false;
+            self.checked = !enabled; // 還原為先前狀態
+            alert('設定失敗：' + err.message);
+          })
+          .setEmailOneClick(enabled);
+      });
 
       function loadPendingApprovals() {
         showLoader('正在載入待審核案件...');

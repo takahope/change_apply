@@ -60,11 +60,33 @@ function doGet(e) {
     if (!validLink) {
       return HtmlService.createHtmlOutputFromFile('unauthorized').setTitle('權限不足');
     }
+
+    const actionType = e.parameter.action || '';
     const actionTemplate = HtmlService.createTemplateFromFile('action');
-    actionTemplate.actionType = e.parameter.action || '';
     actionTemplate.actionRow = e.parameter.row || '';
     actionTemplate.actionApprover = actionApprover;
     actionTemplate.actionToken = actionToken;
+    actionTemplate.resultMessage = '';
+    actionTemplate.resultOk = '';
+
+    // 一鍵模式（關閉兩段式）下的「核准」：直接在 doGet 執行並渲染結果頁。
+    // （拒絕仍走確認頁以收集原因；兩段式模式則一律走確認頁。）
+    if (getEmailOneClick() && actionType === 'approve') {
+      let resultMessage, resultOk;
+      try {
+        resultMessage = processEmailApproval(actionRow, actionApprover, actionToken);
+        resultOk = true;
+      } catch (err) {
+        resultMessage = err.message;
+        resultOk = false;
+      }
+      actionTemplate.actionType = 'done';
+      actionTemplate.resultMessage = resultMessage;
+      actionTemplate.resultOk = resultOk ? 'true' : 'false';
+      return actionTemplate.evaluate().setTitle('系統變更申請 - 審核');
+    }
+
+    actionTemplate.actionType = actionType;
     return actionTemplate.evaluate().setTitle('系統變更申請 - 審核');
   }
 
@@ -664,6 +686,27 @@ function getActionSecret() {
     props.setProperty('ACTION_SECRET', secret);
   }
   return secret;
+}
+
+/**
+ * 讀取「信件一鍵審核」開關（關閉兩段式防誤觸）。預設 false＝兩段式（安全）。
+ * @returns {boolean}
+ */
+function getEmailOneClick() {
+  return PropertiesService.getScriptProperties().getProperty('EMAIL_ONE_CLICK') === 'true';
+}
+
+/**
+ * 設定「信件一鍵審核」開關。僅審核人可變更。
+ * @param {boolean} enabled
+ * @returns {boolean} 設定後的狀態
+ */
+function setEmailOneClick(enabled) {
+  if (!isCurrentUserApprover(Session.getActiveUser().getEmail())) {
+    throw new Error('權限不足，只有審核人可以變更此設定。');
+  }
+  PropertiesService.getScriptProperties().setProperty('EMAIL_ONE_CLICK', enabled ? 'true' : 'false');
+  return getEmailOneClick();
 }
 
 /**

@@ -143,6 +143,9 @@
       </div>
 
       <div class="card">
+        <!-- 一鍵模式由伺服端先執行，結果以隱藏元素承接（避免結果字串注入 JS） -->
+        <div id="serverResult" data-ok="<?= resultOk ?>" class="hidden"><?= resultMessage ?></div>
+
         <p id="assetLine" class="asset-line hidden"></p>
         <div id="detailBody"></div>
 
@@ -218,6 +221,16 @@
 
       // 載入申請內容（不會改動資料）
       window.addEventListener('load', function() {
+        // 一鍵模式：伺服端已於 doGet 執行完成，直接顯示結果
+        if (ACTION_TYPE === 'done') {
+          const sr = el('serverResult');
+          const ok = sr.getAttribute('data-ok') === 'true';
+          const noticeId = ok ? 'resultNotice' : 'errorNotice';
+          el(noticeId).textContent = sr.textContent;
+          show(noticeId);
+          return;
+        }
+
         showLoader('正在載入申請內容...');
         google.script.run
           .withSuccessHandler(function(ctx) {
